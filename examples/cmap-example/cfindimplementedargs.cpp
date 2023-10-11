@@ -220,7 +220,6 @@ void find_parameters(const std::string& file, const std::unordered_map<std::stri
                     }
                 }
             }
-
             parameters[filename] = matched_lines;
         }
 
@@ -242,7 +241,6 @@ void find_parameters(const std::string& file, const std::unordered_map<std::stri
 
             std::cout << std::endl;
         }
-
         help_file.close();
     } else {
         std::cerr << "Failed to open help file: " << file << std::endl;
