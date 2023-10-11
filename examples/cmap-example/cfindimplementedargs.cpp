@@ -75,7 +75,7 @@ std::string extract_print_content(const std::string& line) {
 // The function to update the source file
 void update_file(const std::string& file_from, const std::string& file_to = "c_help_list.txt") {
     std::ifstream in_file(file_from);
-    std::ofstream out_file(file_to);
+    std::ofstream out_file(file_to, std::ios::app);  // Change the file mode to append
 
     if (in_file && out_file) {
         std::string line;
@@ -84,6 +84,7 @@ void update_file(const std::string& file_from, const std::string& file_to = "c_h
             if (is_in_print_statement(line)) {
                 std::string content = extract_print_content(line);
                 printf("Content: %s",content.c_str());
+                out_file << "Content: " << content << std::endl;  // Write content to the output file
             }
         }
         in_file.close();
@@ -160,7 +161,7 @@ std::unordered_map<std::string, std::unordered_set<std::string>> find_arguments(
 // The function to output the results
 void output_results(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
 
-    std::cout << "Filename: help_list.txt, arguments: " << std::endl;
+    std::cout << "Filename: c_help_list.txt, arguments: " << std::endl;
 
     std::unordered_set<std::string> all_arguments;
 
@@ -226,18 +227,19 @@ std::unordered_map<std::string, std::string> sub_dict {
     {"no_alloc", "no_alloc"}
 };
 
-std::vector<std::string> substitution_list(const std::vector<std::string>& parameters) {
-    std::vector<std::string> new_parameters;
+std::unordered_set<std::string> substitution_list(const std::unordered_set<std::string>& parameters) {
+    std::unordered_set<std::string> new_parameters;
     for (const std::string& parameter : parameters) {
         if (sub_dict.count(parameter) > 0) {
-            new_parameters.push_back(parameter);
-            new_parameters.push_back(sub_dict[parameter]);
+            new_parameters.insert(parameter);
+            new_parameters.insert(sub_dict[parameter]);
         } else {
-            new_parameters.push_back(parameter);
+            new_parameters.insert(parameter);
         }
     }
     return new_parameters;
 }
+
 
 std::vector<std::pair<std::string, std::unordered_set<std::string>>> convert_to_sorted_vector(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
     // Convert the unordered_map to a vector of pairs
@@ -251,19 +253,12 @@ std::vector<std::pair<std::string, std::unordered_set<std::string>>> convert_to_
     return sorted_vector;
 }
 
-// The function to find parameters in the help file
-std::unordered_map<std::string, std::vector<std::string>> readcommonh_parameters;
-
-void find_parameters(const std::string& file, const std::vector<std::pair<std::string, std::unordered_set<std::string>>>& sorted_result) {
-    // Rest of the function code...
-}
-
 void title_print(std::string filename) {
     std::cout << "Title: " << filename << std::endl;
 }
 
-void find_parameters(const std::string& file, const std::unordered_map<std::string, std::vector<std::string>>& sorted_result) {
-    std::ifstream helpfile(file);
+// The function to find parameters in the help file
+void find_parameters(const std::string& file, const std::vector<std::pair<std::string, std::unordered_set<std::string>>>& sorted_result) {    std::ifstream helpfile(file);
     std::string line;
     std::vector<std::string> lines;
     while (std::getline(helpfile, line)) {
@@ -273,15 +268,15 @@ void find_parameters(const std::string& file, const std::unordered_map<std::stri
 
     for (const auto& pair : sorted_result) {
         std::string filename = pair.first;
-        std::vector<std::string> arguments = substitution_list(pair.second);
-        std::vector<std::string> parameters;
+        std::unordered_set<std::string> arguments = substitution_list(pair.second);
+        std::unordered_set<std::string> parameters;
 
         for (const std::string& line : lines) {
             for (const std::string& argument : arguments) {
                 std::string pattern = "(?:--" + argument + "\\s)|(?:params\\." + argument + "(?=[\\s.,\\.\\(\\);]|\\.+\\w))";
                 std::regex regex(pattern);
                 if (std::regex_search(line.substr(0, 50), regex)) {
-                    parameters.push_back(line);
+                    parameters.insert(line);
                 }
             }
         }
@@ -305,6 +300,7 @@ void find_parameters(const std::string& file, const std::unordered_map<std::stri
                 }
             }
 
+            std::unordered_map<std::string, std::vector<std::string>> readcommonh_parameters;
             std::cout << "\nNow we extract the original gpt_params definition from common.h with the defaults for implemented arguments:\n";
             int gpt_count = 0;
             for (const auto& pair : readcommonh_parameters) {
@@ -321,7 +317,7 @@ void find_parameters(const std::string& file, const std::unordered_map<std::stri
 
             std::cout << "\nSearching the other way round is more efficient:\n";
             int key_count = 0;
-            for (const std::string& argument : std::set<std::string>(arguments.begin(), arguments.end())) {
+            for (const std::string& argument : std::unordered_set<std::string>(arguments.begin(), arguments.end())) {
                 if (readcommonh_parameters.count(argument) > 0) {
                     key_count++;
                     const std::vector<std::string>& parameter_info = readcommonh_parameters[argument];
@@ -342,13 +338,13 @@ void find_parameters(const std::string& file, const std::unordered_map<std::stri
 int main() {
     std::string directory = "/Users/edsilm2/llama.cpp/examples";
 
-    update_file("common/common.cpp", "help_list.txt");
-    replace_dashes_with_underscores("help_list.txt");
+    update_file("common/common.cpp", "c_help_list.txt");
+    replace_dashes_with_underscores("c_help_list.txt");
 
     auto result = find_arguments(directory);
     output_results(result);
     auto sorted_result = convert_to_sorted_vector(result);
-    find_parameters("help_list.txt", sorted_result);
+    find_parameters("c_help_list.txt", sorted_result);
 
     return 0;
 }
