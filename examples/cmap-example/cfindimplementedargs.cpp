@@ -32,7 +32,7 @@ std::string replace_underscores_with_hyphens(const std::string& input) {
     return result;
 }
 
-// The function to replace dashes with underscores in a file
+// The function to replace dashes/hyphens with underscores in a file
 void replace_dashes_with_underscores(const std::string& filename) {
     std::ifstream in_file(filename);
     std::string content, replacedContent;
@@ -159,6 +159,7 @@ std::unordered_map<std::string, std::unordered_set<std::string>> find_arguments(
 
 // The function to output the results
 void output_results(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
+
     std::cout << "Filename: help_list.txt, arguments: " << std::endl;
 
     std::unordered_set<std::string> all_arguments;
@@ -166,11 +167,9 @@ void output_results(const std::unordered_map<std::string, std::unordered_set<std
     for (const auto& [filename, arguments] : result) {
         all_arguments.insert(arguments.begin(), arguments.end());
     }
-
     for (const auto& argument : all_arguments) {
         std::cout << argument << " ";
     }
-
     std::cout << std::endl;
 }
 
@@ -187,63 +186,156 @@ std::string concatenate(const std::vector<std::string>& v) {
             concatenate = true;
         }
     }
-
     return concatenated_element;
 }
 
+// list all the equivalences between declarations in common.h and common.cpp that define the help
+// these are used to substitute the searched params.attributes (keys) with help attributes (values)
+std::unordered_map<std::string, std::string> sub_dict {
+    {"n_threads", "threads"},
+    {"n_ctx", "ctx_size"},
+    {"n_draft", "draft"},
+    {"n_threads_batch", "threads_batch"},
+    {"n_chunks", "chunks"},
+    {"n_batch", "batch_size"},
+    {"n_sequences", "sequences"},
+    {"n_parallel", "parallel"},
+    {"n_beams", "beams"},
+    {"n_keep", "keep"},
+    {"n_probs", "nprobs"},
+    {"path_prompt_cache", "prompt_cache"},
+    {"prompt_file", "prompt_file"},
+    {"input_prefix", "in_prefix"},
+    {"input_suffix", "in_suffix"},
+    {"input_prefix_bos", "in_prefix_bos"},
+    {"antiprompt", "reverse_prompt"},
+    {"mul_mat_q", "no_mul_mat_q"},
+    {"use_mmap", "no_mmap"},
+    {"use_mlock", "mlock"},
+    {"model_alias", "alias"},
+    {"tfs_z", "tfs"},
+    {"use_color", "color"},
+    {"logit_bias", "logit_bias"},
+    {"ignore_eos", "ignore_eos"},
+    {"mirostat_tau", "mirostat_ent"},
+    {"mirostat_eta", "mirostat_lr"},
+    {"penalize_nl", "no_penalize_nl"},
+    {"typical_p", "typical"},
+    {"mem_size", "mem_size"},
+    {"mem_buffer", "mem_buffer"},
+    {"no_alloc", "no_alloc"}
+};
+
+std::vector<std::string> substitution_list(const std::vector<std::string>& parameters) {
+    std::vector<std::string> new_parameters;
+    for (const std::string& parameter : parameters) {
+        if (sub_dict.count(parameter) > 0) {
+            new_parameters.push_back(parameter);
+            new_parameters.push_back(sub_dict[parameter]);
+        } else {
+            new_parameters.push_back(parameter);
+        }
+    }
+    return new_parameters;
+}
+
+std::vector<std::pair<std::string, std::unordered_set<std::string>>> convert_to_sorted_vector(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
+    // Convert the unordered_map to a vector of pairs
+    std::vector<std::pair<std::string, std::unordered_set<std::string>>> sorted_vector(result.begin(), result.end());
+
+    // Sort the vector based on key (if needed)
+    std::sort(sorted_vector.begin(), sorted_vector.end(), [](const auto& a, const auto& b) {
+        return a.first < b.first;
+    });
+
+    return sorted_vector;
+}
+
 // The function to find parameters in the help file
-void find_parameters(const std::string& file, const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
-    std::ifstream help_file(file);
+std::unordered_map<std::string, std::vector<std::string>> readcommonh_parameters;
+
+void find_parameters(const std::string& file, const std::vector<std::pair<std::string, std::unordered_set<std::string>>>& sorted_result) {
+    // Rest of the function code...
+}
+
+void title_print(std::string filename) {
+    std::cout << "Title: " << filename << std::endl;
+}
+
+void find_parameters(const std::string& file, const std::unordered_map<std::string, std::vector<std::string>>& sorted_result) {
+    std::ifstream helpfile(file);
     std::string line;
+    std::vector<std::string> lines;
+    while (std::getline(helpfile, line)) {
+        lines.push_back(line);
+    }
+    helpfile.close();
 
-    if (help_file) {
-        std::vector<std::string> lines;
-        while (std::getline(help_file, line)) {
-            lines.push_back(line);
-        }
+    for (const auto& pair : sorted_result) {
+        std::string filename = pair.first;
+        std::vector<std::string> arguments = substitution_list(pair.second);
+        std::vector<std::string> parameters;
 
-        std::unordered_map<std::string, std::vector<std::string>> parameters;
-
-        for (const auto& [filename, arguments] : result) {
-            std::unordered_set<std::string> substituted_arguments;
-            for (const auto& argument : arguments) {
-                substituted_arguments.insert(replace_underscores_with_hyphens(argument));
-            }
-
-            std::vector<std::string> matched_lines;
-            for (const auto& line : lines) {
-                for (const auto& argument : substituted_arguments) {
-                    std::regex pattern(R"(--)" + argument + R"(\s)|(?:params\.)" + argument + R"(\b(?=[\s\.,;]|\.+\w)))");
-
-                    if (std::regex_search(line, pattern)) {
-                        matched_lines.push_back(line);
-                    }
+        for (const std::string& line : lines) {
+            for (const std::string& argument : arguments) {
+                std::string pattern = "(?:--" + argument + "\\s)|(?:params\\." + argument + "(?=[\\s.,\\.\\(\\);]|\\.+\\w))";
+                std::regex regex(pattern);
+                if (std::regex_search(line.substr(0, 50), regex)) {
+                    parameters.push_back(line);
                 }
             }
-            parameters[filename] = matched_lines;
         }
 
-        for (const auto& [filename, matched_lines] : parameters) {
-            std::cout << "Filename: " << filename << std::endl;
-            std::cout << "Command-line arguments available and gpt-params functions implemented (TODO: multi-line helps NEED SOME WORK):" << std::endl;
+        std::unordered_set<std::string> all_parameters(parameters.begin(), parameters.end());
 
-            if (matched_lines.empty()) {
-                std::cout << "    None" << std::endl;
+        title_print(filename);
+        std::cout << "\nCommand-line arguments available and gpt-params functions implemented (TODO: multi-line helps NEED SOME WORK):\n";
+
+        if (all_parameters.empty()) {
+            std::cout << "    \033[032mNone\033[0m\n";
+        } else {
+            int help_count = 0;
+            for (const std::string& parameter : all_parameters) {
+                std::string replaced_param = replace_underscores_with_hyphens(parameter);
+                if (parameter.compare(0, 4, "    ") != 0) {
+                    help_count++;
+                    std::cout << help_count << " help: \033[33m" << replaced_param << "<30}\033[0m\n";
+                } else {
+                    std::cout << "   help: \033[33m" << replaced_param << "<30}\033[0m\n";
+                }
+            }
+
+            std::cout << "\nNow we extract the original gpt_params definition from common.h with the defaults for implemented arguments:\n";
+            int gpt_count = 0;
+            for (const auto& pair : readcommonh_parameters) {
+                const std::string& k = pair.first;
+                const std::vector<std::string>& v = pair.second;
+                if (readcommonh_parameters.empty()) {
+                    std::cout << "    \033[032mNone\033[0m\n";
+                } else if (std::find(arguments.begin(), arguments.end(), k) != arguments.end()) {
+                    std::string concatenated_element = concatenate(v);
+                    gpt_count++;
+                    std::cout << gpt_count << " gpt_param: \033[32m" << k << ">19}; \033[34mrole: \033[33m" << concatenated_element << "<60}\033[0m;  \033[34mdefault: \033[30m" << v[1] << "<10}\033[0m\n";
+                }
+            }
+
+            std::cout << "\nSearching the other way round is more efficient:\n";
+            int key_count = 0;
+            for (const std::string& argument : std::set<std::string>(arguments.begin(), arguments.end())) {
+                if (readcommonh_parameters.count(argument) > 0) {
+                    key_count++;
+                    const std::vector<std::string>& parameter_info = readcommonh_parameters[argument];
+                    std::string concatenated_element = concatenate(parameter_info);
+                    std::cout << key_count << " key: " << argument << ">25}; role: " << concatenated_element << "<60}; default: " << parameter_info[1] << "<10}\n";
+                }
+            }
+
+            if (help_count == gpt_count && gpt_count == key_count) {
+                std::cout << "\n\033[032mNo unresolved help-list incompatibilities with \033[33m" << filename.substr(filename.find_last_of('/') + 1) << "\033[0m\n";
             } else {
-                int helpCount = 0;
-                for (const auto& line : matched_lines) {
-                    if (line.find("    ") != 0) {
-                        helpCount++;
-                    }
-                    std::cout << helpCount << " help: " << line << std::endl;
-                }
+                std::cout << "\n\033[031mThis app requires some attention regarding help-function consistency.\033[0m\n";
             }
-
-            std::cout << std::endl;
         }
-        help_file.close();
-    } else {
-        std::cerr << "Failed to open help file: " << file << std::endl;
     }
 }
 
@@ -255,7 +347,8 @@ int main() {
 
     auto result = find_arguments(directory);
     output_results(result);
-    find_parameters("help_list.txt", result);
+    auto sorted_result = convert_to_sorted_vector(result);
+    find_parameters("help_list.txt", sorted_result);
 
     return 0;
 }
