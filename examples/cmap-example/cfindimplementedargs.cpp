@@ -120,7 +120,7 @@ std::unordered_map<std::string, std::unordered_set<std::string>> find_arguments(
     std::unordered_map<std::string, std::unordered_set<std::string>> arguments;
 
     for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
-        if (entry.path().extension() == ".cpp") {
+        if (entry.path().extension().string() == ".cpp") {
             std::ifstream in_file(entry.path());
 
             if (in_file) {
@@ -159,7 +159,7 @@ std::unordered_map<std::string, std::unordered_set<std::string>> find_arguments(
 
 // The function to output the results
 void output_results(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
-    std::cout << "Filename: help_list.txt, arguments: ";
+    std::cout << "Filename: help_list.txt, arguments: " << std::endl;
 
     std::unordered_set<std::string> all_arguments;
 
