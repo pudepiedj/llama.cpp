@@ -58,7 +58,7 @@ void replace_dashes_with_underscores(const std::string& filename) {
     }
 }
 
-// the functions to capture everything between quotes in print statements)
+// the function(s) to capture everything between quotes in print statements)
 bool is_in_print_statement(const std::string& line) {
     return line.find("printf(") != std::string::npos;
 }
@@ -112,7 +112,6 @@ std::string capture_after_params(const std::string& content) {
             return content.substr(startPos);  // Capture until end of string
         }
     }
-
     return "";  // Pattern not found
 }
 
