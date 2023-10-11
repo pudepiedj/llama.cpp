@@ -10,6 +10,10 @@ import collections
 import re
 import readcommonh
 
+# Specify the directory you want to search for cpp files
+# This obviously shouldn't be hard-coded but we are developing here!
+directory = '/Users/edsilm2/llama.cpp/examples'
+
 # update the source file - usually 'help_list.txt', so the default - in case the source file has been changed
 def update_file(file_from, file_to = "help_list.txt"):
     # Open the file_from file
@@ -76,7 +80,7 @@ def output_results(result):
     print(f"\033[32mAll of them: \033[0m{sorted(all_of_them)}.")
     return sorted_result
 
-# put all the words after "//" in a dict back together with spaces
+# put all the words after "//" in a dict 'back together' with spaces
 def concatenate(v):
     concatenated_element = ""
     for i, element in enumerate(v):
@@ -199,8 +203,19 @@ def find_parameters(file, sorted_result):
                 else:
                     print("\n\033[031mThis app requires some attention regarding help-function consistency.\033[0m")
 
-# Specify the directory you want to search for cpp files
-directory = '/Users/edsilm2/llama.cpp/examples'
+def apps_using_parameter(parameters, result, directory):
+
+    for parameter in parameters:
+        file_list = []
+        for filename, arguments in result.items():
+            if parameter in arguments:
+                file_list.append(filename.split('/')[-1])
+        print(f"\033[33m{parameter}\033[0m occurs in:")
+        output = '\n'.join(" "*20 + f"\033[31m{file}\033[31m" for file in file_list)
+        if not file_list:
+            print(" "*20 + f"\033[31mNo .cpp files in \033[33m{directory}\033[31m currently use \033[33m{parameter}\033[0m")
+        else:
+            print(output)
 
 if __name__ == '__main__':
 
@@ -215,14 +230,17 @@ if __name__ == '__main__':
     # we later reverse these changers before printing the help lines
     replace_dashes_with_underscores('help_list.txt')
 
-    print("\n####################### find parameters #################################")
+    print("\n####################### find parameters #################################\n")
     # Call the find function to collect all the params.attributes and output the result
     result = find_arguments(directory)
 
-    print("\n######################################## output_results #################################")
+    print("\n######################################## output_results #################################\n")
     # sort the results and output them
     sorted = output_results(result)
 
-    print("\n######################## find help context parameters #################################")
+    print("\n######################## find help context parameters #################################\n")
     # analyse the files and what they contain
     find_parameters("help_list.txt", sorted)
+
+    print("\n######################## find files containing each parameter #################################\n")
+    apps_using_parameter(readcommonh.parameters, sorted, directory)
