@@ -14,7 +14,7 @@
 #include <map>
 #include <numeric>
 
-std::vector<std::string> split_string(const std::string& str, const std::string& delimiter) {
+static std::vector<std::string> split_string(const std::string& str, const std::string& delimiter) {
     std::vector<std::string> tokens;
     std::size_t start = 0, end = 0;
     bool inside_tags = false;  // flag to track if we are inside "<>"

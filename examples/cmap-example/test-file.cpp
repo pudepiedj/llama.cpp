@@ -11,7 +11,7 @@ int main() {
 
     // open the file
     outFile = fopen("test_file.txt", "w");
-    if(outFile == NULL) {
+    if(outFile == nullptr) {
         fprintf(stderr, "Cannot open test_file.txt for writing\n");
         return 1;
     }

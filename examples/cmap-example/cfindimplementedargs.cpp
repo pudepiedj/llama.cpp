@@ -10,9 +10,12 @@
 #include <regex>
 #include <unordered_map>
 #include <algorithm>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 // function to replace hyphens with underscores
-std::string replace_hyphens_with_underscores(const std::string& input) {
+static std::string replace_hyphens_with_underscores(const std::string& input) {
     std::string result = input;
     for (size_t i = 0; i < result.length(); i++) {
         if (result[i] == '-') {
@@ -23,7 +26,7 @@ std::string replace_hyphens_with_underscores(const std::string& input) {
 }
 
 // function to replace underscores with hyphens
-std::string replace_underscores_with_hyphens(const std::string& input) {
+static std::string replace_underscores_with_hyphens(const std::string& input) {
     std::string result = input;
     for (size_t i = 0; i < result.length(); i++) {
         if (result[i] == '_') {
@@ -34,7 +37,7 @@ std::string replace_underscores_with_hyphens(const std::string& input) {
 }
 
 // The function to replace dashes/hyphens with underscores in a file
-void replace_dashes_with_underscores(const std::string& filename) {
+static void replace_dashes_with_underscores(const std::string& filename) {
     std::ifstream in_file(filename);
     std::string content, replacedContent;
 
@@ -42,39 +45,39 @@ void replace_dashes_with_underscores(const std::string& filename) {
         std::stringstream buffer;
         buffer << in_file.rdbuf();
         content = buffer.str();
+        } else {
+            std::cerr << "Failed to open input file." << std::endl;
+        } // this closes the file which is otherwise made blank
 
-        replace_hyphens_with_underscores(content);
+        replacedContent = replace_hyphens_with_underscores(content);
 
-        in_file.close();
-
+        // this inadvertently zeroes c_help_file.txt
         std::ofstream out_file(filename);
         if (out_file) {
             out_file << replacedContent;
             out_file.close();
         } else {
             std::cerr << "Failed to open output file." << std::endl;
-        }
-    } else {
-        std::cerr << "Failed to open input file." << std::endl;
     }
 }
 
 // the function(s) to capture everything between quotes in print statements)
-bool is_in_print_statement(const std::string& line) {
+static bool is_in_print_statement(const std::string& line) {
     return line.find("    printf(") != std::string::npos;
 }
 
-std::string extract_print_content(const std::string& line) {
+static std::string extract_print_content(const std::string& line) {
     size_t start = line.find("\"") + 1;
     size_t end = line.find_last_of("\"");
     if (start != std::string::npos && end != std::string::npos && end > start) {
         return line.substr(start, end - start);
+    } else {
+        return "";
     }
-    return "";
 }
 
 // The function to update the source file
-void update_file(const std::string& file_from, const std::string& file_to) {
+static void update_help_file(const std::string& file_from, const std::string& file_to) {
     std::ifstream in_file(file_from);
     std::ofstream out_file(file_to, std::ios::out);  // Change the file mode to append
 
@@ -102,7 +105,7 @@ void update_file(const std::string& file_from, const std::string& file_to) {
 }
 
 // match the params strings up to the stipulated next character
-std::string capture_after_params(const std::string& content) {
+static std::string capture_after_params(const std::string& content) {
     std::size_t startPos = std::string::npos;
     std::string delimiter = " \n})(,>;";
 
@@ -124,49 +127,57 @@ std::string capture_after_params(const std::string& content) {
 }
 
 // The function to find arguments in a directory
-std::unordered_map<std::string, std::unordered_set<std::string>> find_arguments(const std::string& directory) {
+static std::unordered_map<std::string, std::unordered_set<std::string>> find_arguments(const std::string& directory) {
     std::unordered_map<std::string, std::unordered_set<std::string>> arguments;
+    std::unordered_set<std::string> parameter_list;
 
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
+    // fs is defined as the abbrevation for std::filesystem at the top
+    for (const auto& entry : fs::recursive_directory_iterator(directory)) {
         if (entry.path().extension().string() == ".cpp") {
-            std::ifstream in_file(entry.path());
+            std::ifstream in_file(entry.path(), std::ios::in);
+            if (!fs::exists(entry.path())) {
+                printf("Accessed file does not exist\n"); // Handle the case when file does not exist
+            } else {}
+                printf("entry path = %s, entry path extension = %s\n", entry.path().extension().c_str(), entry.path().c_str());
+                if (in_file) {
+                    std::stringstream buffer;
+                    buffer << in_file.rdbuf();
+                    std::string content = buffer.str();
 
-            if (in_file) {
-                std::stringstream buffer;
-                buffer << in_file.rdbuf();
-                std::string content = buffer.str();
-
-                std::unordered_set<std::string> matches;
-
-                std::size_t pos = 0;
-                while (pos != std::string::npos) {
-                    pos = content.find_first_of("params.", pos);
-                    if (pos != std::string::npos) {
-                        matches.insert(capture_after_params(content.substr(pos)));
-                        pos++;
-                    }
-                    pos = content.find_first_of("params->", pos);
-                    if (pos != std::string::npos) {
-                        matches.insert(capture_after_params(content.substr(pos)));
-                        pos++;
-                    }
-                }
-
-                for (const auto& match : matches) {
-                    std::cout << match << std::endl;
-                }
-
-                    in_file.close();
-        } else {
-                        std::cerr << "Failed to open file: " << entry.path().string() << std::endl;
+                    std::unordered_set<std::string> matches;
+                    // this seems indiscriminate; we don't want literally everything after params ...
+                    std::size_t pos = 0;
+                    while (pos != std::string::npos) {
+                        pos = content.find_first_of("params.", pos);
+                        if (pos != std::string::npos) {
+                            matches.insert(capture_after_params(content.substr(pos)));
+                            pos++;
                         }
+                        // pos = content.find_first_of("params->", pos);
+                        // if (pos != std::string::npos) {
+                        //     matches.insert(capture_after_params(content.substr(pos)));
+                        //    pos++;
+                        // }
                     }
-                }
+
+                    for (const auto& match : matches) {
+                        std::cout << match << std::endl;
+                        parameter_list.insert(match);
+                    }
+                    fs::path p(entry.path());
+                    std::cout << "The file name is: " << p.filename() << '\n';
+                    arguments.insert({p.filename(), parameter_list});
+                    in_file.close();
+            } else {
+                std::cerr << "Failed to open file: " << entry.path().string() << std::endl;
+            }
+            }
+        }
     return arguments;
 }
 
 // The function to output the results
-void output_results(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
+static void output_results(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
 
     std::cout << "Filename: c_help_list.txt, arguments: " << std::endl;
 
@@ -182,7 +193,7 @@ void output_results(const std::unordered_map<std::string, std::unordered_set<std
 }
 
 // The function to concatenate elements after "//"
-std::string concatenate(const std::vector<std::string>& v) {
+static std::string concatenate(const std::vector<std::string>& v) {
     std::string concatenated_element;
     bool concatenate = false;
 
@@ -199,7 +210,9 @@ std::string concatenate(const std::vector<std::string>& v) {
 
 // list all the equivalences between declarations in common.h and common.cpp that define the help
 // these are used to substitute the searched params.attributes (keys) with help attributes (values)
-std::unordered_map<std::string, std::string> sub_dict {
+// this double declaration avoids some weird destruction warning that I don't quite get
+static std::unordered_map<std::string, std::string>& getSubDict() {
+    static std::unordered_map<std::string, std::string> sub_dict {
     {"n_threads", "threads"},
     {"n_ctx", "ctx_size"},
     {"n_draft", "draft"},
@@ -232,14 +245,17 @@ std::unordered_map<std::string, std::string> sub_dict {
     {"mem_size", "mem_size"},
     {"mem_buffer", "mem_buffer"},
     {"no_alloc", "no_alloc"}
-};
+    };
+    return sub_dict;
+}
 
-std::unordered_set<std::string> substitution_list(const std::unordered_set<std::string>& parameters) {
+static std::unordered_set<std::string> substitution_list(const std::unordered_set<std::string>& parameters) {
     std::unordered_set<std::string> new_parameters;
+    const auto& sub_dict = getSubDict(); // Get reference to the sub_dict
     for (const std::string& parameter : parameters) {
         if (sub_dict.count(parameter) > 0) {
             new_parameters.insert(parameter);
-            new_parameters.insert(sub_dict[parameter]);
+            new_parameters.insert(sub_dict.at(parameter));
         } else {
             new_parameters.insert(parameter);
         }
@@ -248,7 +264,7 @@ std::unordered_set<std::string> substitution_list(const std::unordered_set<std::
 }
 
 
-std::vector<std::pair<std::string, std::unordered_set<std::string>>> convert_to_sorted_vector(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
+static std::vector<std::pair<std::string, std::unordered_set<std::string>>> convert_to_sorted_vector(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
     // Convert the unordered_map to a vector of pairs
     std::vector<std::pair<std::string, std::unordered_set<std::string>>> sorted_vector(result.begin(), result.end());
 
@@ -260,12 +276,12 @@ std::vector<std::pair<std::string, std::unordered_set<std::string>>> convert_to_
     return sorted_vector;
 }
 
-void title_print(std::string filename) {
+static void title_print(std::string filename) {
     std::cout << "Title: " << filename << std::endl;
 }
 
 // The function to find parameters in the help file
-void find_parameters(const std::string& file, const std::vector<std::pair<std::string, std::unordered_set<std::string>>>& sorted_result) {    std::ifstream helpfile(file);
+static void find_parameters(const std::string& file, const std::vector<std::pair<std::string, std::unordered_set<std::string>>>& sorted_result) {    std::ifstream helpfile(file);
     std::string line;
     std::vector<std::string> lines;
     while (std::getline(helpfile, line)) {
@@ -278,12 +294,12 @@ void find_parameters(const std::string& file, const std::vector<std::pair<std::s
         std::unordered_set<std::string> arguments = substitution_list(pair.second);
         std::unordered_set<std::string> parameters;
 
-        for (const std::string& line : lines) {
+        for (const std::string& line2 : lines) { // avoid Wshadow warning from line 270
             for (const std::string& argument : arguments) {
                 std::string pattern = "(?:--" + argument + "\\s)|(?:params\\." + argument + "(?=[\\s.,\\.\\(\\);]|\\.+\\w))";
                 std::regex regex(pattern);
-                if (std::regex_search(line.substr(0, 50), regex)) {
-                    parameters.insert(line);
+                if (std::regex_search(line2.substr(0, 50), regex)) {
+                    parameters.insert(line2);
                 }
             }
         }
@@ -310,9 +326,9 @@ void find_parameters(const std::string& file, const std::vector<std::pair<std::s
             std::unordered_map<std::string, std::vector<std::string>> readcommonh_parameters;
             std::cout << "\nNow we extract the original gpt_params definition from common.h with the defaults for implemented arguments:\n";
             int gpt_count = 0;
-            for (const auto& pair : readcommonh_parameters) {
-                const std::string& k = pair.first;
-                const std::vector<std::string>& v = pair.second;
+            for (const auto& pair2 : readcommonh_parameters) {
+                const std::string& k = pair2.first;
+                const std::vector<std::string>& v = pair2.second;
                 if (readcommonh_parameters.empty()) {
                     std::cout << "    \033[032mNone\033[0m\n";
                 } else if (std::find(arguments.begin(), arguments.end(), k) != arguments.end()) {
@@ -348,12 +364,15 @@ int main() {
 
     std::string directory = "/Users/edsilm2/llama.cpp/examples";
     std::string common_source = "/Users/edsilm2/llama.cpp/common/common.cpp";
-    std::string target = "/Users/edsilm2/llama.cpp/cmap-example/c_help_list.txt";
+    std::string target = "/Users/edsilm2/llama.cpp/examples/cmap-example/c_help_list.txt";
 
-    update_file(common_source, target);
+    update_help_file(common_source, target);
     replace_dashes_with_underscores(target);
 
     auto result = find_arguments(directory);
+    // we get here with c_help_test.txt correctly populated
+    // but there seems to be something wrong with how results affects things
+    // and it contains an absurd number of elements in parameters
     output_results(result);
     auto sorted_result = convert_to_sorted_vector(result);
     find_parameters(target, sorted_result);

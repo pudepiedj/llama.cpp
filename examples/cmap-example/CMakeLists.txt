@@ -19,9 +19,11 @@ add_executable(test-file test-file.cpp)
 # Set the desired output executable names
 # set_target_properties(cmap-example read-dir PROPERTIES OUTPUT_NAME "${TARGET_SUFFIX}")
 # get as much information as possible about the unreachable code or whatever
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+# set(CMAKE_CXX_FLAGS "-Weverything")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 
+# don't warn about incompatibility before C++17
+set(CMAKE_CXX_STANDARD 17)
 
 # Install the runtime
 install(TARGETS cmap-example read-dir cfindimplementedargs test-file RUNTIME DESTINATION bin)
