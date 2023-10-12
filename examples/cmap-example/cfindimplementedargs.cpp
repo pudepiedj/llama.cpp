@@ -1,6 +1,7 @@
 // essentially a C++ port of find-implemented-args.py
 
 #include <iostream>
+#include <cstdio>   // prob unnecessary
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -347,7 +348,7 @@ int main() {
 
     std::string directory = "/Users/edsilm2/llama.cpp/examples";
     std::string common_source = "/Users/edsilm2/llama.cpp/common/common.cpp";
-    std::string target = "/Users/edsilm2/llama.cpp//cmap-example/c_help_list.txt";
+    std::string target = "/Users/edsilm2/llama.cpp/cmap-example/c_help_list.txt";
 
     update_file(common_source, target);
     replace_dashes_with_underscores(target);
