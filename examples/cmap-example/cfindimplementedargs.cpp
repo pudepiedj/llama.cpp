@@ -60,7 +60,7 @@ void replace_dashes_with_underscores(const std::string& filename) {
 
 // the function(s) to capture everything between quotes in print statements)
 bool is_in_print_statement(const std::string& line) {
-    return line.find("printf(") != std::string::npos;
+    return line.find("    printf(") != std::string::npos;
 }
 
 std::string extract_print_content(const std::string& line) {
@@ -73,9 +73,9 @@ std::string extract_print_content(const std::string& line) {
 }
 
 // The function to update the source file
-void update_file(const std::string& file_from, const std::string& file_to = "c_help_list.txt") {
+void update_file(const std::string& file_from, const std::string& file_to) {
     std::ifstream in_file(file_from);
-    std::ofstream out_file(file_to, std::ios::app);  // Change the file mode to append
+    std::ofstream out_file(file_to, std::ios::out);  // Change the file mode to append
 
     if (in_file && out_file) {
         std::string line;
@@ -83,14 +83,20 @@ void update_file(const std::string& file_from, const std::string& file_to = "c_h
         while (std::getline(in_file, line)) {
             if (is_in_print_statement(line)) {
                 std::string content = extract_print_content(line);
-                printf("Content: %s",content.c_str());
+                printf("Content: %s\n",content.c_str());
                 out_file << "Content: " << content << std::endl;  // Write content to the output file
             }
         }
         in_file.close();
+        out_file.flush();
         out_file.close();
     } else {
-        std::cerr << "Failed to open files." << std::endl;
+        if (not in_file) {
+            std::cerr << "Failed to open in_file." << std::endl;
+        }
+        if (not out_file) {
+            std::cerr << "Failed to open out_file." << std::endl;
+        }
     }
 }
 
@@ -336,15 +342,18 @@ void find_parameters(const std::string& file, const std::vector<std::pair<std::s
 }
 
 int main() {
+
+    // ADD LOG FILE USING CODE FROM MAIN.CPP
+
     std::string directory = "/Users/edsilm2/llama.cpp/examples";
 
-    update_file("common/common.cpp", "c_help_list.txt");
-    replace_dashes_with_underscores("c_help_list.txt");
+    update_file("/Users/edsilm2/llama.cpp/common/common.cpp", "/Users/edsilm2/llama.cpp//cmap-example/c_help_list.txt");
+    replace_dashes_with_underscores("/Users/edsilm2/llama.cpp//cmap-example/c_help_list.txt");
 
     auto result = find_arguments(directory);
     output_results(result);
     auto sorted_result = convert_to_sorted_vector(result);
-    find_parameters("c_help_list.txt", sorted_result);
+    find_parameters("/Users/edsilm2/llama.cpp//cmap-example/c_help_list.txt", sorted_result);
 
     return 0;
 }
