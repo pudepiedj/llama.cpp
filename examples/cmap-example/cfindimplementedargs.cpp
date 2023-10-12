@@ -346,14 +346,16 @@ int main() {
     // ADD LOG FILE USING CODE FROM MAIN.CPP
 
     std::string directory = "/Users/edsilm2/llama.cpp/examples";
+    std::string common_source = "/Users/edsilm2/llama.cpp/common/common.cpp";
+    std::string target = "/Users/edsilm2/llama.cpp//cmap-example/c_help_list.txt";
 
-    update_file("/Users/edsilm2/llama.cpp/common/common.cpp", "/Users/edsilm2/llama.cpp//cmap-example/c_help_list.txt");
-    replace_dashes_with_underscores("/Users/edsilm2/llama.cpp//cmap-example/c_help_list.txt");
+    update_file(common_source, target);
+    replace_dashes_with_underscores(target);
 
     auto result = find_arguments(directory);
     output_results(result);
     auto sorted_result = convert_to_sorted_vector(result);
-    find_parameters("/Users/edsilm2/llama.cpp//cmap-example/c_help_list.txt", sorted_result);
+    find_parameters(target, sorted_result);
 
     return 0;
 }
