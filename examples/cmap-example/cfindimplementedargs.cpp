@@ -423,7 +423,7 @@ int main() {
 
     // ADD LOG FILE USING CODE FROM MAIN.CPP
 
-    std::string directory = "/Users/edsilm2/llama.cpp";
+    std::string directory = "/Users/edsilm2/llama.cpp/examples";
     std::string common_source = "/Users/edsilm2/llama.cpp/common/common.cpp";
     std::string target = "/Users/edsilm2/llama.cpp/examples/cmap-example/c_help_list.txt";
     std::unordered_map<std::string, std::unordered_set<std::string>> result;
