@@ -23,7 +23,7 @@ add_executable(test-file test-file.cpp)
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 
 # don't warn about incompatibility before C++17
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 11)
 
 # Install the runtime
 install(TARGETS cmap-example read-dir cfindimplementedargs test-file RUNTIME DESTINATION bin)
@@ -35,10 +35,10 @@ target_link_libraries(cfindimplementedargs PRIVATE common llama ${CMAKE_THREAD_L
 target_link_libraries(test-file PRIVATE common llama ${CMAKE_THREAD_LIBS_INIT})
 
 # Specify the C++ standard note here changed from 11 to 17
-target_compile_features(cmap-example PRIVATE cxx_std_17)
-target_compile_features(read-dir PRIVATE cxx_std_17)
-target_compile_features(cfindimplementedargs PRIVATE cxx_std_17)
-target_compile_features(test-file PRIVATE cxx_std_17)
+target_compile_features(cmap-example PRIVATE cxx_std_11)
+target_compile_features(read-dir PRIVATE cxx_std_11)
+target_compile_features(cfindimplementedargs PRIVATE cxx_std_11)
+target_compile_features(test-file PRIVATE cxx_std_11)
 
 # Add a dependency
 add_dependencies(cmap-example BUILD_INFO)
