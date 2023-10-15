@@ -163,6 +163,15 @@ static std::string getFileExtension(const std::string& fileName) {
     return "";
 }
 
+// extract filename with extension
+static std::string getFileName(const std::string& fileName) {
+    size_t dotIndex = fileName.find_last_of("/");
+    if (dotIndex != std::string::npos) {
+        return fileName.substr(dotIndex + 1);
+    }
+    return "";
+}
+
 // Function to find arguments from *.cpp files in a directory
 static std::unordered_map<std::string, std::unordered_set<std::string>> find_arguments(const std::string& directory) {
     std::unordered_map<std::string, std::unordered_set<std::string>> arguments;
@@ -173,7 +182,8 @@ static std::unordered_map<std::string, std::unordered_set<std::string>> find_arg
     recursive_directory_iterator(directory, files);
     for (const auto& file : files) {
         if (getFileExtension(file) == "cpp") {
-            title_print(file);
+            std::string filename = getFileName(file);
+            title_print(filename);
             std::ifstream input_file(file);
             if (!input_file) {
                 std::cerr << "Failed to open file: " << file << std::endl;
@@ -209,17 +219,18 @@ static std::unordered_map<std::string, std::unordered_set<std::string>> find_arg
                     if (matches.empty()) {
                         std::cout  << std::endl << "********** No instances of " << search_string << " were found *************" << std::endl;
                     } else {
-                        std::cout  << std::endl << "\033[33m************* Instances of " << search_string << " were found in " << file << " *************\033[0m" << std::endl << std::endl;
+                        std::cout  << std::endl << "************* Instances of " << search_string << " were found in " << filename << " *************" << std::endl << std::endl;
                         for (const auto& match : matches) {
                             std::cout << search_string + match << std::endl;
                             // parameter_list needs a more appropriate structure
-                            parameter_list.insert(search_string + match);
+                            // removing the search_string prefix is a temporary fix
+                            parameter_list.insert(match);
+                            }
                         }
                     }
-                printf("\n\033[33mEntry path for previous output:\033[0m %s \n\n", file.c_str());
-                arguments.insert({file, parameter_list});
-                input_file.close();
-                }
+            printf("\n\033[33mEntry path for previous output:\033[0m %s \n\n", file.c_str());
+            arguments.insert({filename, parameter_list});
+            input_file.close();
             }
         }
     }
@@ -300,6 +311,8 @@ static std::unordered_map<std::string, std::string>& getSubDict() {
         return sub_dict;
 }
 
+// is the logic wrong: we replace everything in parameters but label anything not found
+// but anything that is already RIGHT is not found, so we actually render it WRONG for later use
 static std::unordered_set<std::string> substitution_list(const std::unordered_set<std::string>& parameters) {
     std::unordered_set<std::string> new_parameters;
     const auto& sub_dict = getSubDict(); // Get reference to the sub_dict
@@ -308,8 +321,10 @@ static std::unordered_set<std::string> substitution_list(const std::unordered_se
         if (iter != sub_dict.end()) { // Key exists in sub_dict
             new_parameters.insert(iter->second);
         } else { // Key does not exist in sub_dict
-            // Handle absence of key, if required
-            new_parameters.insert(parameter + " **** not found **** ");
+            // Handle absence of key, if required - probably breaks the logic so don't
+            // new_parameters.insert(parameter + " **** not found **** ");
+            // just return what we already had
+            new_parameters.insert(parameter);
         }
     }
     return new_parameters;
@@ -338,6 +353,8 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
     }
     helpfile.close();
 
+    // Here p is ONE ELEMENT of sorted_results but are we not declaring it correctly?
+    // and doesn't p.second still contain the "params." etc prefixes?
     for (std::pair<std::string, std::unordered_set<std::string>>& p : sorted_result) {
         std::cout << p.first << std::endl;
         std::string filename = p.first;
@@ -435,7 +452,7 @@ int main() {
     // we get here with c_help_test.txt correctly populated
     // but there seems to be something wrong with how results affects things
     // and it contains an absurd number of elements in parameters
-    output_results(result);
+    // output_results(result);
 
     auto sorted_result = convert_to_sorted_vector(result);
 
