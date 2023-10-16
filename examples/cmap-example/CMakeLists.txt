@@ -20,7 +20,7 @@ add_executable(test-file test-file.cpp)
 # set_target_properties(cmap-example read-dir PROPERTIES OUTPUT_NAME "${TARGET_SUFFIX}")
 # get as much information as possible about the unreachable code or whatever
 # set(CMAKE_CXX_FLAGS "-Weverything")
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
+# set(CMAKE_CXX_FLAGS_DEBUG "-g")
 
 # don't warn about incompatibility before C++17
 set(CMAKE_CXX_STANDARD 11)

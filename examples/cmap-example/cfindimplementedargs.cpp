@@ -173,14 +173,21 @@ static std::string getFileName(const std::string& fileName) {
 }
 
 // Function to find arguments from *.cpp files in a directory
-static std::unordered_map<std::string, std::unordered_set<std::string>> find_arguments(const std::string& directory) {
-    std::unordered_map<std::string, std::unordered_set<std::string>> arguments;
+static std::unordered_map<std::string, std::unordered_set<std::string> > find_arguments(const std::string& directory) {
+    std::unordered_map<std::string, std::unordered_set<std::string> > arguments;
     std::unordered_set<std::string> parameter_list;
+    // this will eventually be a file we read in; for now a manual list
+    const std::vector<std::string> search_strings = {"params.", "params->", "gpt params ", "llama params ", "my_params ", "gpt_params ", "gpt-params "};
+    const size_t search_strings_size = search_strings.size();
 
     // rewritten to comply with C++11 standards avoiding fs:filesystem
     std::vector<std::string> files;
     recursive_directory_iterator(directory, files);
-    for (const auto& file : files) {
+
+    const size_t file_number = files.size();
+    for(size_t i = 0; i < file_number; i++) {
+        const std::string& file = files[i];
+
         if (getFileExtension(file) == "cpp") {
             std::string filename = getFileName(file);
             title_print(filename);
@@ -193,52 +200,54 @@ static std::unordered_map<std::string, std::unordered_set<std::string>> find_arg
                 buffer << input_file.rdbuf();
                 std::string content = buffer.str();
 
+                // how many characters in the current file?
                 std::size_t content_length = content.length();
 
-                // this will eventually be a file we read in; for now a manual list
-                std::vector<std::string> search_strings = {"params.", "params->", "gpt params ", "llama params", "my_params", "gpt_params", "gpt-params"};
-                for (std::string search_string : search_strings) {
-                    std::unordered_set<std::string> matches; // reset each loop
-                    // this seems indiscriminate; we don't want literally everything after params ...
-                    std::size_t pos = 0; // rezero each loop
-                    while (pos < content_length) {
-                        // we search for strings of interest
-                        // but need to trap cases where it searches to 2^64-1 and crashes
-                        // and can't let it do it then correct it; damage already done
-                        pos = content.find(search_string, pos);
-                        if (pos >= content_length) {
-                            pos = content_length + 1;
-                            continue;
+                std::unordered_set<std::string> matches; // reset for each new file
+
+                // we search the file ONCE for all the strings of interest
+                // so we want to find ALL instances of EACH string
+                // then switch to the next string then change the file
+                // then make them unique using the unordered_set which happens automatically
+                for (size_t i = 0; i < search_strings_size; ++i) {
+                    const std::string& search_string = search_strings[i]; {
+                    std::size_t internal_pos = 0;
+                    while (internal_pos != std::string::npos) {
+                        internal_pos = content.find(search_string, internal_pos); // start of search_string
+                        if (internal_pos != std::string::npos){
+                            std::string temp_string = capture_after_params(content.substr(internal_pos), content_length, search_string);
+                            matches.insert(temp_string);
+                            internal_pos = internal_pos + search_string.length();
                         } else {
-                            matches.insert(capture_after_params(content.substr(pos), content_length, search_string));
-                            pos++;
-                        }
-                    }
-                    // now save matched strings with the search string prefixed
-                    // doing it here collects by search_string
-                    if (matches.empty()) {
-                        std::cout  << std::endl << "********** No instances of " << search_string << " were found *************" << std::endl;
-                    } else {
-                        std::cout  << std::endl << "************* Instances of " << search_string << " were found in " << filename << " *************" << std::endl << std::endl;
-                        for (const auto& match : matches) {
-                            std::cout << search_string + match << std::endl;
-                            // parameter_list needs a more appropriate structure
-                            // removing the search_string prefix is a temporary fix
-                            parameter_list.insert(match);
+                            // now save matched strings for all the search strings
+                            // doing it this way no longer collects by search_string; too bad!
+                            if (matches.empty()) {
+                                std::cout  << std::endl << "********** No instances of " << search_string << " were found *************" << std::endl;
+                            } else {
+                                std::cout  << std::endl << "************* Instances of " << search_string << " were found in " << filename << " *************" << std::endl << std::endl;
+                                for (const auto& match : matches) {
+                                    std::cout << search_string + match << std::endl;
+                                    // parameter_list needs a more appropriate structure
+                                    // removing the search_string prefix is a temporary fix
+                                    parameter_list.insert(match);
+                                    }
+                                }
+                            continue;;    // finished one search_string; do the next
                             }
                         }
                     }
-            printf("\n\033[33mEntry path for previous output:\033[0m %s \n\n", file.c_str());
+                }
+            }
+            printf("\nEntry path for previous output: %s \n\n", file.c_str());
             arguments.insert({filename, parameter_list});
             input_file.close();
-            }
         }
     }
     return arguments;
 }
 
 // Function to output the results
-static void output_results(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
+static void output_results(const std::unordered_map<std::string, std::unordered_set<std::string> >& result) {
 
     title_print("\033[33mWe are now inside output_results.\033[0m");
     std::cout << std::endl << "Filename: c_help_list.txt, arguments: " << std::endl << std::endl;
@@ -315,7 +324,7 @@ static std::unordered_map<std::string, std::string>& getSubDict() {
 // but anything that is already RIGHT is not found, so we actually render it WRONG for later use
 static std::unordered_set<std::string> substitution_list(const std::unordered_set<std::string>& parameters) {
     std::unordered_set<std::string> new_parameters;
-    const auto& sub_dict = getSubDict(); // Get reference to the sub_dict
+    const std::unordered_map<std::string, std::string>& sub_dict = getSubDict(); // Get reference to the sub_dict
     for (const std::string& parameter : parameters) {
         auto iter = sub_dict.find(parameter);
         if (iter != sub_dict.end()) { // Key exists in sub_dict
@@ -330,21 +339,21 @@ static std::unordered_set<std::string> substitution_list(const std::unordered_se
     return new_parameters;
 }
 
-static std::vector<std::pair<std::string, std::unordered_set<std::string>>> convert_to_sorted_vector(const std::unordered_map<std::string, std::unordered_set<std::string>>& result) {
+static std::vector<std::pair<std::string, std::unordered_set<std::string> > > convert_to_sorted_vector(const std::unordered_map<std::string, std::unordered_set<std::string> >& result) {
     // Convert the unordered_map to a vector of pairs
-    std::vector<std::pair<std::string, std::unordered_set<std::string>>> sorted_vector(result.begin(), result.end());
+    std::vector<std::pair<std::string, std::unordered_set<std::string> > > sorted_vector(result.begin(), result.end());
 
     // Sort the vector based on key (if needed)
     std::sort(sorted_vector.begin(), sorted_vector.end(), [] \
-        (const std::pair<std::string, std::unordered_set<std::string>>& alpha, \
-        const std::pair<std::string, std::unordered_set<std::string>>& beta) {
+        (const std::pair<std::string, std::unordered_set<std::string> >& alpha, \
+        const std::pair<std::string, std::unordered_set<std::string> >& beta) {
         return alpha.first < beta.first;
     });
     return sorted_vector;
 }
 
 // Function to find parameters in the help file
-static void find_parameters(const std::string& file, std::vector<std::pair<std::string, std::unordered_set<std::string>>>& sorted_result) {
+static void find_parameters(const std::string& file, std::vector<std::pair<std::string, std::unordered_set<std::string> > >& sorted_result) {
     std::ifstream helpfile(file);
     std::string line;
     std::vector<std::string> lines;
@@ -355,21 +364,30 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
 
     // Here p is ONE ELEMENT of sorted_results but are we not declaring it correctly?
     // and doesn't p.second still contain the "params." etc prefixes?
-    for (std::pair<std::string, std::unordered_set<std::string>>& p : sorted_result) {
-        std::cout << p.first << std::endl;
-        std::string filename = p.first;
+    for (std::pair<std::string, std::unordered_set<std::string> >& p : sorted_result) {
+        std::cout << "successfully read the filename as " << p.first << std::endl << std::endl;
+        std::cout << "successfully found these parameters in " << p.first << std::endl << std::endl;
+        std::string filename = p.first; // why do this now and here?
         std::unordered_set<std::string> arguments = substitution_list(p.second);
+
         std::unordered_set<std::string> parameters;
 
-        for (const std::string& line2 : lines) { // line2 to avoid Wshadow warning from line 270
+        for (const std::string& line2 : lines) { // line2 to avoid Wshadow warning from line 270 (pedantic)
             for (const std::string& argument : arguments) {
-                std::string pattern = "--" + argument + " ";
-                size_t pos = line2.find(pattern);
-
-                if (pos != std::string::npos) {
+                std::string pattern = "__" + argument + " ";
+                // std::cout << line2 << "   " << pattern << std::endl;
+                // std::cout << "substituted pattern " << pattern << std::endl;
+                std::size_t pos = line2.find(pattern, 9);
+                if (pos != std::string::npos){
+                    std::cout << pattern << "   " << pos << "   " << std::endl;
+                    }
+                // why are we doing this again and differently?
+                // we have read the (doctored) helps into lines
+                // and now we are searching each of lines for each of arguments as pattern
+                if (pos != std::string::npos) { // we found one
                     parameters.insert(line2);
-                } else {
-                    pattern = "params." + argument;
+                } /* else {
+                    pattern = "params." + argument; // we are not only interested in this version
                     pos = line2.find(pattern);
                     if (pos != std::string::npos) {
                         // Check if the following character is a valid delimiter
@@ -378,7 +396,7 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
                             parameters.insert(line2);
                         }
                     }
-                }
+                } */
             }
         }
 
@@ -387,12 +405,13 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
         title_print(filename);
         std::cout << "\nCommand-line arguments available and gpt-params functions implemented (TODO: multi-line helps NEED SOME WORK):\n";
 
-        if (all_parameters.empty()) {
+        if (parameters.empty()) {
             std::cout << "    **** None ****\n";
         } else {
             int help_count = 0;
-            for (const std::string& parameter : all_parameters) {
+            for (const std::string& parameter : parameters) {
                 std::string replaced_param = replace_underscores_with_hyphens(parameter);
+                // print out the lines of the help file as found in the specific file.cpp
                 if (parameter.compare(0, 4, "    ") != 0) {
                     help_count++;
                     std::cout << help_count << " help: \033[33m" << replaced_param << "<30}\033[0m\n";
@@ -401,7 +420,7 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
                 }
             }
 
-            std::unordered_map<std::string, std::vector<std::string>> readcommonh_parameters;
+            std::unordered_map<std::string, std::vector<std::string> > readcommonh_parameters;
             std::cout << "\nNow we extract the original gpt_params definition from common.h with the defaults for implemented arguments:\n";
             int gpt_count = 0;
             for (const auto& pair2 : readcommonh_parameters) {
@@ -443,7 +462,7 @@ int main() {
     std::string directory = "/Users/edsilm2/llama.cpp/examples";
     std::string common_source = "/Users/edsilm2/llama.cpp/common/common.cpp";
     std::string target = "/Users/edsilm2/llama.cpp/examples/cmap-example/c_help_list.txt";
-    std::unordered_map<std::string, std::unordered_set<std::string>> result;
+    std::unordered_map<std::string, std::unordered_set<std::string> > result;
 
     update_help_file(common_source, target);
     replace_dashes_with_underscores(target);
