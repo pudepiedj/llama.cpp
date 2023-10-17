@@ -11,6 +11,130 @@
 #include <algorithm>
 #include <dirent.h>
 
+#include <list>
+#include <bitset>
+#include <cmath>
+// there may be good reasons not to sort the parameters, but here we use map
+#include <map>
+#include <numeric>
+
+static std::vector<std::string> split_string(const std::string& str, const std::string& delimiter) {
+    std::vector<std::string> tokens;
+    std::size_t start = 0, end = 0;
+    bool inside_tags = false;  // flag to track if we are inside "<>"
+
+    while ((end = str.find(delimiter, start)) != std::string::npos) {
+        std::string token = str.substr(start, end - start);
+
+        if (!inside_tags && !token.empty()) { // Add condition to exclude empty substrings and if not inside "<>"
+            tokens.push_back(token);
+        }
+        // deal with cases where the split character occurs inside the tags <>
+        // Update inside_tags flag based on "<>"
+        size_t open_tag_pos = str.find("<", start);
+        size_t close_tag_pos = str.find(">", start);
+        if (open_tag_pos != std::string::npos && close_tag_pos != std::string::npos && open_tag_pos < end) {
+            inside_tags = true;
+        } else if (close_tag_pos != std::string::npos && close_tag_pos < end) {
+            inside_tags = false;
+        }
+        start = end + delimiter.length();
+    }
+    tokens.push_back(str.substr(start));
+    if (!tokens[0].empty() && tokens[0] != "//") {
+        return tokens;
+    } else {
+        return {"no relevant parameters"};
+    }
+}
+
+static void print_parameters(const std::map<std::string, std::vector<std::string> >& parameters) {
+    for (const std::pair<const std::string, std::vector<std::string> >& pair : parameters) {
+        const std::string& key = pair.first;
+        const std::vector<std::string>& value = pair.second; // usually has multiple elements
+        printf("key: %30s: values: ", key.c_str());
+        for (const std::string& element : value) {
+            printf("%s ", element.c_str());
+        }
+        printf("\n");
+    }
+}
+
+static std::map<std::string, std::vector<std::string> > extract_parameters(std::string& filepath) {
+    std::ifstream in_file(filepath);
+    std::string line;
+    std::vector<std::string> lines;
+
+    std::map<std::string, std::vector<std::string> > parameters;
+
+    // there is only one file to search so this is the outermost frame
+    if (in_file) {
+        while (std::getline(in_file, line)) {
+            lines.push_back(line);
+        }
+        in_file.close(); // Close the file explicitly
+
+        // we have the file in lines
+        // this loop finds all the params inside the file inside struct gpt_params
+        bool inside = false;
+        for (const std::string& line : lines) {
+            // split_string returns "no relevant parameters" if certain criteria are not met
+            std::vector<std::string> nws_elements = split_string(line, " ");
+
+            if (nws_elements[0] != "no relevant parameters") {
+                /*
+                printf("cmap nwe = ");
+                for (const std::string& element : nws_elements) {
+                    printf("%s ", element.c_str());
+                }
+                printf("\n");
+                */
+
+                if (!nws_elements.empty() && nws_elements[1] == "struct" && nws_elements[2] == "gpt_params") {
+                    inside = true;
+                    }
+
+                if (!nws_elements.empty() && inside) {
+                    // cannot use nwe[0] as key because types do not generate unique keys and so overwrite
+                    // Here we deliberately add back the key so we can manually change it when it is different (remove eventually)
+                    // std::cout << "**** " << nws_elements[1] << std::endl;
+                    parameters[nws_elements[1]] = nws_elements;
+                    }
+
+                // Terminate the harvest; TODO: not robust; need better terminator; this just a crude hack for now
+                if (nws_elements.size() > 2 && nws_elements[2] == "infill") {
+                    inside = false;
+                    break;
+                    }
+            }
+        }
+        // now display them (unnecessary operationally; here for development)
+        print_parameters(parameters);
+        std::cout << "Number of entries in read_parameters: " << parameters.size() << std::endl;
+        // return the results
+        return parameters;
+    } else {
+        parameters = {
+            {"First_key_string", {"Other", "Strings"}}, {"Another_key_string", {"More", "Values"}},
+        };
+        printf("Could not open requested file; check the path and name.\n");
+        return parameters;
+    }
+}
+
+
+static std::map<std::string, std::vector<std::string> > cmap(std::string& filepath) {
+
+    std::map<std::string, std::vector<std::string> > read_parameters;
+    // process the code inserted to replicate readcommonh.py
+    // this does not produce output but here is forced; it just collects the output into parameters and returns 0
+    read_parameters = extract_parameters(filepath);
+    std::cout << "Number of entries in read_parameters: " << read_parameters.size() << std::endl;
+    // print_parameters(read_parameters);
+
+    return read_parameters;
+}
+
 static void title_print(std::string filename) {
     int totalLength = 7 + filename.length(); // Calculate the total length
     std::string hashtagString(totalLength, '#'); // Create the string of "#" signs
@@ -329,10 +453,7 @@ static std::unordered_set<std::string> substitution_list(const std::unordered_se
         auto iter = sub_dict.find(parameter);
         if (iter != sub_dict.end()) { // Key exists in sub_dict
             new_parameters.insert(iter->second);
-        } else { // Key does not exist in sub_dict
-            // Handle absence of key, if required - probably breaks the logic so don't
-            // new_parameters.insert(parameter + " **** not found **** ");
-            // just return what we already had
+        } else {
             new_parameters.insert(parameter);
         }
     }
@@ -353,7 +474,9 @@ static std::vector<std::pair<std::string, std::unordered_set<std::string> > > co
 }
 
 // Function to find parameters in the help file
-static void find_parameters(const std::string& file, std::vector<std::pair<std::string, std::unordered_set<std::string> > >& sorted_result) {
+static void find_parameters(const std::string& file, std::vector<std::pair<std::string, std::unordered_set<std::string> > >& sorted_result,
+    std::map<std::string, std::vector<std::string> >& readcommonh_parameters) {
+
     std::ifstream helpfile(file);
     std::string line;
     std::vector<std::string> lines;
@@ -367,6 +490,7 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
     for (std::pair<std::string, std::unordered_set<std::string> >& p : sorted_result) {
         std::cout << "successfully read the filename as " << p.first << std::endl << std::endl;
         std::cout << "successfully found these parameters in " << p.first << std::endl << std::endl;
+
         std::string filename = p.first; // why do this now and here?
         std::unordered_set<std::string> arguments = substitution_list(p.second);
 
@@ -386,17 +510,7 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
                 // and now we are searching each of lines for each of arguments as pattern
                 if (pos != std::string::npos) { // we found one
                     parameters.insert(line2);
-                } /* else {
-                    pattern = "params." + argument; // we are not only interested in this version
-                    pos = line2.find(pattern);
-                    if (pos != std::string::npos) {
-                        // Check if the following character is a valid delimiter
-                        char delimiter = line2[pos + pattern.length()];
-                        if (std::isspace(delimiter) || delimiter == '.' || delimiter == ',' || delimiter == '(' || delimiter == ')' || delimiter == ';') {
-                            parameters.insert(line2);
-                        }
-                    }
-                } */
+                }
             }
         }
 
@@ -420,18 +534,21 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
                 }
             }
 
-            std::unordered_map<std::string, std::vector<std::string> > readcommonh_parameters;
+            // here readcommonh_parameters is an ordered map but it needn't be
             std::cout << "\nNow we extract the original gpt_params definition from common.h with the defaults for implemented arguments:\n";
             int gpt_count = 0;
-            for (const auto& pair2 : readcommonh_parameters) {
+            for (const std::pair<const std::string, std::vector<std::string> >& pair2 : readcommonh_parameters) {
                 const std::string& k = pair2.first;
+                std::cout << k << "   ";
                 const std::vector<std::string>& v = pair2.second;
                 if (readcommonh_parameters.empty()) {
-                    std::cout << "    \033[032mNone\033[0m\n";
-                } else if (std::find(arguments.begin(), arguments.end(), k) != arguments.end()) {
+                    std::cout << "    ******None******\n";
+                } else {
+                    if (std::find(arguments.begin(), arguments.end(), k) != arguments.end()) {
                     std::string concatenated_element = concatenate(v);
                     gpt_count++;
-                    std::cout << gpt_count << " gpt_param: \033[32m" << k << ">19}; \033[34mrole: \033[33m" << concatenated_element << "<60}\033[0m;  \033[34mdefault: \033[30m" << v[1] << "<10}\033[0m\n";
+                    std::cout << gpt_count << " gpt_param: " << k << "   " << concatenated_element << "default: " << v[1] << std::endl;
+                    }
                 }
             }
 
@@ -463,11 +580,26 @@ int main() {
     std::string common_source = "/Users/edsilm2/llama.cpp/common/common.cpp";
     std::string target = "/Users/edsilm2/llama.cpp/examples/cmap-example/c_help_list.txt";
     std::unordered_map<std::string, std::unordered_set<std::string> > result;
+    std::map<std::string, std::vector<std::string> > readcommonh_parameters;
 
+    readcommonh_parameters = cmap(common_source);
+
+    title_print("This is after the cmap call******");
+
+    // purely diagnostic output
+    for (const std::pair<const std::string, std::vector<std::string, std::allocator<std::string> > > & pair2 : readcommonh_parameters) {
+        const std::string& k = pair2.first;
+        std::cout << "This is k: " << k.c_str() << ":   ";
+        const std::vector<std::string>& v = pair2.second;
+        std::cout << "and this is v: " << v[2].c_str() << ".   " << std::endl;
+    }
+    /*
     update_help_file(common_source, target);
     replace_dashes_with_underscores(target);
 
+
     result = find_arguments(directory);
+
     // we get here with c_help_test.txt correctly populated
     // but there seems to be something wrong with how results affects things
     // and it contains an absurd number of elements in parameters
@@ -475,7 +607,7 @@ int main() {
 
     auto sorted_result = convert_to_sorted_vector(result);
 
-    find_parameters(target, sorted_result);
-
+    find_parameters(target, sorted_result, readcommonh_parameters);
+    */
     return 0;
 }

@@ -1,6 +1,5 @@
 // example of a C/C++ equivalent data structure to the python dict in readcommonh.py
 
-#include <map>
 #include <list>
 #include <string>
 #include <bitset>
@@ -9,7 +8,6 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
-#include <regex>
 // there may be good reasons not to sort the parameters, but here we use map
 #include <map>
 #include <numeric>
@@ -22,13 +20,10 @@ static std::vector<std::string> split_string(const std::string& str, const std::
     while ((end = str.find(delimiter, start)) != std::string::npos) {
         std::string token = str.substr(start, end - start);
 
-        // if (!token.empty()) { // Add condition to exclude empty substrings
-        //    tokens.push_back(token);
-
         if (!inside_tags && !token.empty()) { // Add condition to exclude empty substrings and if not inside "<>"
             tokens.push_back(token);
         }
-        // deal with cases where the split character occurs inside <>
+        // deal with cases where the split character occurs inside the tags <>
         // Update inside_tags flag based on "<>"
         size_t open_tag_pos = str.find("<", start);
         size_t close_tag_pos = str.find(">", start);
@@ -40,14 +35,18 @@ static std::vector<std::string> split_string(const std::string& str, const std::
         start = end + delimiter.length();
     }
     tokens.push_back(str.substr(start));
-    return tokens;
+    if (!tokens[0].empty() && tokens[0] != "//") {
+        return tokens;
+    } else {
+        return {"no relevant parameters"};
+    }
 }
 
-void print_parameters(const std::map<std::string, std::vector<std::string>>& parameters) {
+static void print_parameters(const std::map<std::string, std::vector<std::string>>& parameters) {
         for (const auto& pair : parameters) {
             const std::string& key = pair.first;
             const std::vector<std::string>& value = pair.second; // usually has multiple elements
-            printf("key: %25s: values: ", key.c_str());
+            printf("key: %30s: values: ", key.c_str());
             for (const std::string& element : value) {
                 printf("%s ", element.c_str());
             }
@@ -55,15 +54,19 @@ void print_parameters(const std::map<std::string, std::vector<std::string>>& par
     }
 }
 
-std::map<std::string, std::vector<std::string>> extract_parameters() {
-    std::ifstream file("common/common.h");
+static std::map<std::string, std::vector<std::string>> extract_parameters(std::string& filepath) {
+    std::ifstream in_file(filepath);
     std::string line;
     std::vector<std::string> lines;
-    while (std::getline(file, line)) {
-        lines.push_back(line);
-    }
 
     std::map<std::string, std::vector<std::string>> parameters;
+
+    if (in_file) {
+        while (std::getline(in_file, line)) {
+            lines.push_back(line);
+        }
+    in_file.close(); // Close the file explicitly
+
     // fix up failure to match logit_bias; may also need to add lora_adapter; now dealt with and ready for deletion
     // parameters["logit_bias"] = {"std::unordered_map<llama_token, float>" "logit_bias", "=", "0", "//", "way", "to", "alter", "prob", "of", "word", "being", "chosen"};
     // parameters["lora_adapter"] = {"std::vector<std::tuple<std::string, float>>", "lora_adapter", "=", "", "//", "lora", "adapter", "path", "with", "user-defined", "scale"};
@@ -72,10 +75,13 @@ std::map<std::string, std::vector<std::string>> extract_parameters() {
     // this for loop finds all the params inside struct gpt-params
     bool inside = false;
     for (const std::string& line : lines) {
+        // split_string returns "no relevant parameters" if certain criteria are met
         std::vector<std::string> nws_elements = split_string(line, " ");
-        printf("nwe = ");
-        for (const std::string& element : nws_elements) {
-            printf("%s ", element.c_str());
+        if (nws_elements[0] != "no relevant parameters"){
+            printf("nwe = ");
+            for (const std::string& element : nws_elements) {
+                printf("%s ", element.c_str());
+            }
         }
         printf("\n");
 
@@ -90,14 +96,18 @@ std::map<std::string, std::vector<std::string>> extract_parameters() {
             std::vector<std::string> copy = nws_elements; // Create a copy of nws_elements
             parameters[nws_elements[1]] = copy; // Assign the copy to parameters
 
+            /*
             // Remove spurious entry caused by eccentric status of logit_bias
+            // should no longer arise
             if (parameters.count("float>") && parameters["float>"][2] == "logit_bias;") {
                 parameters.erase("float>");
             }
             // Remove spurious entry caused by eccentric status of lora_adapter
+            // should no longer arise
             if (parameters.count("float>>") && parameters["float>>"][2] == "lora_adapter;") {
                 parameters.erase("float>>");
             }
+            */
         }
 
         // Terminate the harvest; TODO: not robust; need better terminator; this just a crude hack for now
@@ -111,13 +121,21 @@ std::map<std::string, std::vector<std::string>> extract_parameters() {
 
     // return the results (will eventually become a void function)
     return parameters;
+    } else {
+        parameters = {{"First_key_string", {"Other", "Strings"}}, {"Another_key_string", {"More", "Values"}},
+        };
+        printf("Could not open requested file; check the path and name.\n");
+        return parameters;
+    }
 }
 
 int main() {
 
+    std::string filepath = "/Users/edsilm2/llama.cpp/common/common.h";
+    std::map<std::string, std::vector<std::string>> parameters;
     // process the code inserted to replicate readcommonh.py
     // this does not produce output but here is forced; it just collects the output into parameters and returns 0
-    std::map<std::string, std::vector<std::string>> parameters = extract_parameters();
+    parameters = extract_parameters(filepath);
     print_parameters(parameters);
 
     return 0;
