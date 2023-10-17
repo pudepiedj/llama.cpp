@@ -11,12 +11,171 @@
 #include <algorithm>
 #include <dirent.h>
 
+#include <list>
+#include <bitset>
+#include <cmath>
+// there may be good reasons not to sort the parameters, but here we use map
+#include <map>
+#include <numeric>
+
 static void title_print(std::string filename) {
     int totalLength = 7 + filename.length(); // Calculate the total length
     std::string hashtagString(totalLength, '#'); // Create the string of "#" signs
     std::cout << hashtagString << std::endl;
     std::cout << "Title: " << filename << std::endl;
     std::cout << hashtagString << std::endl;
+}
+
+// rewritten routine to cater for nested tags which doesn't quite work
+static std::vector<std::string> divide_string(const std::string& str, const std::string& splitter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    size_t start = 0;
+    size_t end = 0;
+    size_t opening_tag = 0;
+    size_t closing_tag = 0;
+    size_t prev_closing_tag = 0;
+    size_t pos;
+    size_t len;
+    const std::string rep = "replacement";
+    std::string new_str = str;
+
+    // test the input string to check that it doesn't have unmatched [apparent] tags such as in "<="
+    const std::vector<std::string> obstacles = {"<=", ">="};
+    for (const std::string& obstacle : obstacles) {
+        len = obstacle.length();
+        pos = new_str.find(obstacle, start);
+        if (pos != std::string::npos) {
+            new_str.replace(pos, len, rep);
+            std::cout << new_str << std::endl;
+        }
+    }
+
+    while ((end = new_str.find(splitter, start)) != std::string::npos){
+        if (end == prev_closing_tag) {
+            start = closing_tag;
+        }
+        opening_tag = new_str.find("<", start);
+        prev_closing_tag = closing_tag;
+        closing_tag = new_str.find(">", start);
+
+        if ((end < opening_tag) && (opening_tag != std::string::npos)){
+            // not inside a tag
+        } else {
+            if ((opening_tag <= end) && (closing_tag >= end)) {
+                start = opening_tag;
+                end = closing_tag + 1;
+                // inside a tag-pair
+            } else {
+                if (closing_tag < end) {
+                    // not inside a tag
+                } else {
+                    if ((end > prev_closing_tag) && (end < closing_tag) && (opening_tag == std::string::npos) && (closing_tag != std::string::npos)) {
+                        end = new_str.find(">", prev_closing_tag) + 1;
+                        // between a closing tag and another one
+                    }
+                }
+            }
+        }
+        // all paths lead here
+        token = new_str.substr(start, end - start);
+        tokens.push_back(token);
+        start = end + 1;
+    }
+    tokens.push_back(new_str.substr(start));    // add the residue
+    if (!tokens.empty()){
+        return tokens;
+    } else {
+        tokens.push_back("no relevant parameters");
+        return tokens;
+    }
+}
+
+// look carefully: these are printed out alphabetically by key value
+static void print_parameters(const std::map<std::string, std::vector<std::string>> parameters) {
+    for (const std::pair<const std::string, std::vector<std::string> >& pair : parameters) {
+        const std::string& key = pair.first;
+        const std::vector<std::string>& value = pair.second; // usually has multiple elements
+        printf("key: %30s: values: ", key.c_str());
+        for (const std::string& element : value) {
+            printf("%s ", element.c_str());
+        }
+        printf("\n");
+    }
+}
+
+static std::map<std::string, std::vector<std::string> > extract_parameters(std::string filepath) {
+    std::ifstream in_file(filepath);
+    std::string line;
+    std::vector<std::string> lines;
+    std::vector<std::string> nws_elements;
+
+    std::map<std::string, std::vector<std::string> > parameters;
+
+    // there is only one file to search so this is the outermost frame
+    if (in_file) {
+        while (std::getline(in_file, line)) {
+            lines.push_back(line);
+        }
+        in_file.close(); // Close the file explicitly
+
+        // we have the file in lines
+        // this loop finds all the params inside the file inside struct gpt_params
+        bool inside = false;
+        for (const std::string& line : lines) {
+            // divide_string returns "no relevant parameters" if certain criteria are not met
+            // problems arise if a line contains an unpaired "tag" as in "<=" because it fails to return
+            nws_elements = divide_string(line, " ");
+
+            if (nws_elements[0] != "no relevant parameters") {
+
+                if (nws_elements[0] == "struct" && nws_elements[1] == "gpt_params") {
+                    inside = true;
+                }
+
+                if (inside == true) {
+                    printf("cmap nwe = ");
+                    for (const std::string& element : nws_elements) {
+                        printf("%s ", element.c_str());
+                    }
+                    // Terminate the harvest; TODO: not robust; need better terminator; this just a crude hack for now
+                    if (!nws_elements.empty() && (nws_elements[5] == "infill" && nws_elements[4] == "bool")) {
+                        std::cout << "***********Leaving gpt_params***********" << std::endl;
+                        inside = false; // reset to false when debugged
+                        }
+                    printf("\n");
+                    // cannot use nwe[0-4] as key because types and blanks do not generate unique keys and so overwrite
+                    // Here we deliberately add back the key so we can manually change it when it is different (remove eventually)
+                    // std::cout << "**** " << nws_elements[1] << std::endl;
+                    // but we need a better way of storing the output from nws_elements
+                    parameters[nws_elements[5]] = nws_elements;
+                    }
+            } else {
+                std::cout << "IGNORING ONE LINE" << std::endl;
+            }
+        }
+        // now display them (unnecessary operationally; here for development)
+        print_parameters(parameters);
+        return parameters;
+    } else {
+        parameters = {{"First_key_string", {"Other", "Strings"}}, {"Another_key_string", {"More", "Values"}}};
+        printf("Could not open requested file; check the path and name.\n");
+        return parameters;
+    }
+}
+
+
+static std::map<std::string, std::vector<std::string> > cmap(std::string filepath) {
+
+    std::map<std::string, std::vector<std::string> > read_parameters;
+
+    // process the code inserted to replicate readcommonh.py
+    // this does not produce output but here is forced; it just collects the output into parameters and returns 0
+    read_parameters = extract_parameters(filepath);
+    std::cout << "Number of entries in read_parameters: " << read_parameters.size() << std::endl;
+    // print_parameters(read_parameters);
+
+    return read_parameters;
 }
 
 static void recursive_directory_iterator(const std::string& directory, std::vector<std::string>& files) {
@@ -74,14 +233,16 @@ static void replace_dashes_with_underscores(const std::string& filename) {
         std::stringstream buffer;
         buffer << in_file.rdbuf();
         content = buffer.str();
+        in_file.close();
         } else {
             std::cerr << "Failed to open input file." << std::endl;
-        } // this closes the file which is otherwise made blank
+        }
 
+        // this passes the whole file as one big string; probably not a good idea.
         replacedContent = replace_hyphens_with_underscores(content);
 
         // this inadvertently zeroes c_help_file.txt
-        std::ofstream out_file(filename);
+        std::ofstream out_file("examples/cmap-example/substitute_help_list.txt");
         if (out_file) {
             out_file << replacedContent;
             out_file.close();
@@ -329,10 +490,7 @@ static std::unordered_set<std::string> substitution_list(const std::unordered_se
         auto iter = sub_dict.find(parameter);
         if (iter != sub_dict.end()) { // Key exists in sub_dict
             new_parameters.insert(iter->second);
-        } else { // Key does not exist in sub_dict
-            // Handle absence of key, if required - probably breaks the logic so don't
-            // new_parameters.insert(parameter + " **** not found **** ");
-            // just return what we already had
+        } else {
             new_parameters.insert(parameter);
         }
     }
@@ -353,31 +511,49 @@ static std::vector<std::pair<std::string, std::unordered_set<std::string> > > co
 }
 
 // Function to find parameters in the help file
-static void find_parameters(const std::string& file, std::vector<std::pair<std::string, std::unordered_set<std::string> > >& sorted_result) {
+static void find_parameters(const std::string& file, std::vector<std::pair<std::string, std::unordered_set<std::string> > >& sorted_result,
+    std::map<std::string, std::vector<std::string> >& readcommonh_parameters) {
+
     std::ifstream helpfile(file);
+    if (!helpfile.is_open()) {
+        std::cout << "File could not be opened" << std::endl;
+    } else {
+        std::cout << "Successfully opened " << file << " with content: " << std::endl;
+    }
     std::string line;
     std::vector<std::string> lines;
     while (std::getline(helpfile, line)) {
         lines.push_back(line);
+        std::cout << line << std::endl;
     }
     helpfile.close();
 
     // Here p is ONE ELEMENT of sorted_results but are we not declaring it correctly?
     // and doesn't p.second still contain the "params." etc prefixes?
     for (std::pair<std::string, std::unordered_set<std::string> >& p : sorted_result) {
-        std::cout << "successfully read the filename as " << p.first << std::endl << std::endl;
-        std::cout << "successfully found these parameters in " << p.first << std::endl << std::endl;
-        std::string filename = p.first; // why do this now and here?
+        std::string filename = p.first; // why????
+        std::cout << "Successfully read " << p.first << " and found these parameters: " << std::endl << std::endl;
+
         std::unordered_set<std::string> arguments = substitution_list(p.second);
 
-        std::unordered_set<std::string> parameters;
+        title_print("ARGUMENTS:");
+        for (const std::string& argument : arguments) {
+            std::cout << argument << " ";
+        }
+        std::cout << std::endl;
 
+        std::unordered_set<std::string> parameters;
+        std::string pattern;
+        std::size_t pos;
+
+        title_print("LINES");
         for (const std::string& line2 : lines) { // line2 to avoid Wshadow warning from line 270 (pedantic)
             for (const std::string& argument : arguments) {
-                std::string pattern = "__" + argument + " ";
-                // std::cout << line2 << "   " << pattern << std::endl;
-                // std::cout << "substituted pattern " << pattern << std::endl;
-                std::size_t pos = line2.find(pattern, 9);
+                pattern = "__" + argument + " ";
+                std::cout << line2 << "   " << pattern << std::endl;
+                std::cout << "substituted pattern " << pattern << std::endl;
+                title_print("DO WE GET HERE?");
+                pos = line2.find(pattern, 9);
                 if (pos != std::string::npos){
                     std::cout << pattern << "   " << pos << "   " << std::endl;
                     }
@@ -386,17 +562,7 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
                 // and now we are searching each of lines for each of arguments as pattern
                 if (pos != std::string::npos) { // we found one
                     parameters.insert(line2);
-                } /* else {
-                    pattern = "params." + argument; // we are not only interested in this version
-                    pos = line2.find(pattern);
-                    if (pos != std::string::npos) {
-                        // Check if the following character is a valid delimiter
-                        char delimiter = line2[pos + pattern.length()];
-                        if (std::isspace(delimiter) || delimiter == '.' || delimiter == ',' || delimiter == '(' || delimiter == ')' || delimiter == ';') {
-                            parameters.insert(line2);
-                        }
-                    }
-                } */
+                }
             }
         }
 
@@ -420,18 +586,21 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
                 }
             }
 
-            std::unordered_map<std::string, std::vector<std::string> > readcommonh_parameters;
+            // here readcommonh_parameters is an ordered map but it needn't be
             std::cout << "\nNow we extract the original gpt_params definition from common.h with the defaults for implemented arguments:\n";
             int gpt_count = 0;
-            for (const auto& pair2 : readcommonh_parameters) {
+            for (const std::pair<const std::string, std::vector<std::string> >& pair2 : readcommonh_parameters) {
                 const std::string& k = pair2.first;
+                std::cout << k << "   ";
                 const std::vector<std::string>& v = pair2.second;
                 if (readcommonh_parameters.empty()) {
-                    std::cout << "    \033[032mNone\033[0m\n";
-                } else if (std::find(arguments.begin(), arguments.end(), k) != arguments.end()) {
+                    std::cout << "    ******None******\n";
+                } else {
+                    if (std::find(arguments.begin(), arguments.end(), k) != arguments.end()) {
                     std::string concatenated_element = concatenate(v);
                     gpt_count++;
-                    std::cout << gpt_count << " gpt_param: \033[32m" << k << ">19}; \033[34mrole: \033[33m" << concatenated_element << "<60}\033[0m;  \033[34mdefault: \033[30m" << v[1] << "<10}\033[0m\n";
+                    std::cout << gpt_count << " gpt_param: " << k << "   " << concatenated_element << "default: " << v[1] << std::endl;
+                    }
                 }
             }
 
@@ -458,16 +627,36 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
 int main() {
 
     // ADD LOG FILE USING CODE FROM MAIN.CPP
+    std::string common_source = "/Users/edsilm2/llama.cpp/common/common.h";
+    std::map<std::string, std::vector<std::string>> readcommonh_parameters;
+
+    readcommonh_parameters = cmap(common_source);
+
+    std::vector<std::string> getback = divide_string("this <is a <really> short> string", " ");
+    for (std::string vec : getback){
+        std::cout << vec << std::endl;
+        }
+
+    title_print("This is after the cmap call******");
 
     std::string directory = "/Users/edsilm2/llama.cpp/examples";
-    std::string common_source = "/Users/edsilm2/llama.cpp/common/common.cpp";
     std::string target = "/Users/edsilm2/llama.cpp/examples/cmap-example/c_help_list.txt";
-    std::unordered_map<std::string, std::unordered_set<std::string> > result;
+    std::unordered_map<std::string, std::unordered_set<std::string>> result;
+
+    // purely diagnostic output
+    for (const std::pair<const std::string, std::vector<std::string, std::allocator<std::string> > > & pair2 : readcommonh_parameters) {
+        const std::string& k = pair2.first;
+        std::cout << "This is k: " << k.c_str() << ":   ";
+        const std::vector<std::string>& v = pair2.second;
+        std::cout << "and this is v: " << v[2].c_str() << ".   " << std::endl;
+    }
 
     update_help_file(common_source, target);
     replace_dashes_with_underscores(target);
 
+
     result = find_arguments(directory);
+
     // we get here with c_help_test.txt correctly populated
     // but there seems to be something wrong with how results affects things
     // and it contains an absurd number of elements in parameters
@@ -475,7 +664,16 @@ int main() {
 
     auto sorted_result = convert_to_sorted_vector(result);
 
-    find_parameters(target, sorted_result);
+    find_parameters(target, sorted_result, readcommonh_parameters);
+
+    /*
+    std::unordered_set<std::string> plist = \
+    {"n_threads", "n_parallel", "seed", "mirostat_tau", "model_alias", "n_threads_batch"};
+    for (std::string sub : substitution_list(plist)) {
+        std::cout << sub << " ";
+    }
+    std::cout << std::endl;
+    */
 
     return 0;
 }

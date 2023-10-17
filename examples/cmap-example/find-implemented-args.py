@@ -28,6 +28,10 @@ def update_file(file_from, file_to = "help_list.txt"):
     with open(file_to, "w") as file:
         for line in matched_lines:
             file.write(line + '\n')
+    # make a copy for the python version of the program
+    with open("examples/cmap-example/help_list.txt", "w") as file:
+        for line in matched_lines:
+            file.write(line + '\n')
 
 # helper fn to make the hyphenated words in a file snake-case for searching
 def replace_dashes_with_underscores(filename):
@@ -220,7 +224,7 @@ def apps_using_parameter(parameters, result, directory):
 if __name__ == '__main__':
 
    # update the source help file from C++ source (this works exactly as required)
-    update_file("common/common.cpp", "help_list.txt")
+    update_file("common/common.cpp", "examples/cmap-example/c_help_list.txt")
 
     # get the parameters from the common.h file utiity we import
     print(readcommonh.parameters)

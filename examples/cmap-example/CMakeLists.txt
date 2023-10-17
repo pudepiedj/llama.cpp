@@ -35,10 +35,10 @@ target_link_libraries(cfindimplementedargs PRIVATE common llama ${CMAKE_THREAD_L
 target_link_libraries(test-file PRIVATE common llama ${CMAKE_THREAD_LIBS_INIT})
 
 # Specify the C++ standard note here changed from 11 to 17
-target_compile_features(cmap-example PRIVATE cxx_std_11)
-target_compile_features(read-dir PRIVATE cxx_std_11)
-target_compile_features(cfindimplementedargs PRIVATE cxx_std_11)
-target_compile_features(test-file PRIVATE cxx_std_11)
+target_compile_features(cmap-example PRIVATE cxx_std_17)
+target_compile_features(read-dir PRIVATE cxx_std_17)
+target_compile_features(cfindimplementedargs PRIVATE cxx_std_17)
+target_compile_features(test-file PRIVATE cxx_std_17)
 
 # Add a dependency
 add_dependencies(cmap-example BUILD_INFO)
