@@ -534,6 +534,7 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
         std::string filename = p.first; // why????
         std::cout << "Successfully read " << p.first << " and found these parameters: " << std::endl << std::endl;
 
+        std::string filename = p.first; // why do this now and here?
         std::unordered_set<std::string> arguments = substitution_list(p.second);
 
         title_print("ARGUMENTS:");
