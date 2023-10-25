@@ -26,6 +26,44 @@ static void title_print(std::string filename) {
     std::cout << hashtagString << std::endl;
 }
 
+// update the source file - usually 'c_help_list.txt' - from common.cpp
+static void update_menu_file(std::string& file_from, std::string& file_to) {
+
+    // Open the file_from file
+    std::ifstream in_file(file_from);
+    std::string line;
+    std::vector<std::string> lines;
+    std::vector<std::string> new_lines;
+
+
+    // Read the source file line by line into lines
+    if (in_file) {
+        while (std::getline(in_file, line)) {
+            lines.push_back(line);
+        }
+        in_file.close(); // Close the file explicitly
+
+
+        // Find lines starting with "printf(" and ending with ");" (assumes file_from is written in C/C++)
+        for (std::string line : lines) {
+            std::string inside_string = line.substr(line.find("printf("), line.find(");"));
+            new_lines.push_back(inside_string);
+        }
+
+        // Save matched lines to file_to
+        std::ofstream out_file(file_to);
+        for (std::string line : new_lines) {
+            out_file << line + '\n';
+        }
+
+        // make a copy for the python version of the program
+        std::ofstream out_file_2("examples/cmap-example/help_list.txt");
+        for (std::string line : new_lines) {
+            out_file_2 << line + '\n';
+        }
+    }
+}
+
 // rewritten routine to cater for nested tags which doesn't quite work
 static std::vector<std::string> divide_string(const std::string& str, const std::string& splitter) {
     std::vector<std::string> tokens;
@@ -241,8 +279,8 @@ static void replace_dashes_with_underscores(const std::string& filename) {
         // this passes the whole file as one big string; probably not a good idea.
         replacedContent = replace_hyphens_with_underscores(content);
 
-        // this inadvertently zeroes c_help_file.txt
-        std::ofstream out_file("examples/cmap-example/substitute_help_list.txt");
+        // this sometimes inadvertently zeroes c_help_file.txt
+        std::ofstream out_file("cmap-example/substitute_help_list.txt");
         if (out_file) {
             out_file << replacedContent;
             out_file.close();
@@ -266,7 +304,7 @@ static std::string extract_print_content(const std::string& line) {
     }
 }
 
-// Function to update the source file
+// Function to update the c_help_list.txt source file from common.cpp
 static void update_help_file(const std::string& file_from, const std::string& file_to) {
     std::ifstream in_file(file_from);
     std::ofstream out_file(file_to, std::ios::out);  // Change the file mode to append
@@ -411,7 +449,6 @@ static std::unordered_map<std::string, std::unordered_set<std::string> > find_ar
 static void output_results(const std::unordered_map<std::string, std::unordered_set<std::string> >& result) {
 
     title_print("\033[33mWe are now inside output_results.\033[0m");
-    std::cout << std::endl << "Filename: c_help_list.txt, arguments: " << std::endl << std::endl;
 
     for (auto it = result.begin(); it != result.end(); ++it) {
         const auto& filename = it->first;
@@ -510,13 +547,13 @@ static std::vector<std::pair<std::string, std::unordered_set<std::string> > > co
     return sorted_vector;
 }
 
-// Function to find parameters in the help file
-static void find_parameters(const std::string& file, std::vector<std::pair<std::string, std::unordered_set<std::string> > >& sorted_result,
-    std::map<std::string, std::vector<std::string> >& readcommonh_parameters) {
+// Function to find parameters in the help file from four passed files
+static void find_parameters(const std::string& file, std::vector<std::pair<std::string, std::unordered_set<std::string>>>& sorted_result,
+    std::map<std::string, std::vector<std::string>>& readcommonh_parameters) {
 
     std::ifstream helpfile(file);
     if (!helpfile.is_open()) {
-        std::cout << "File could not be opened" << std::endl;
+        std::cout << "File " << file << " could not be opened" << std::endl;
     } else {
         std::cout << "Successfully opened " << file << " with content: " << std::endl;
     }
@@ -531,7 +568,6 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
     // Here p is ONE ELEMENT of sorted_results but are we not declaring it correctly?
     // and doesn't p.second still contain the "params." etc prefixes?
     for (std::pair<std::string, std::unordered_set<std::string> >& p : sorted_result) {
-        std::string filename = p.first; // why????
         std::cout << "Successfully read " << p.first << " and found these parameters: " << std::endl << std::endl;
 
         std::string filename = p.first; // why do this now and here?
@@ -553,7 +589,7 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
                 pattern = "__" + argument + " ";
                 std::cout << line2 << "   " << pattern << std::endl;
                 std::cout << "substituted pattern " << pattern << std::endl;
-                title_print("DO WE GET HERE?");
+                // title_print("DO WE GET HERE?");
                 pos = line2.find(pattern, 9);
                 if (pos != std::string::npos){
                     std::cout << pattern << "   " << pos << "   " << std::endl;
@@ -625,37 +661,47 @@ static void find_parameters(const std::string& file, std::vector<std::pair<std::
     }
 }
 
-int main() {
-
-    // ADD LOG FILE USING CODE FROM MAIN.CPP
-    std::string common_source = "/Users/edsilm2/llama.cpp/common/common.h";
-    std::map<std::string, std::vector<std::string>> readcommonh_parameters;
-
-    readcommonh_parameters = cmap(common_source);
-
-    std::vector<std::string> getback = divide_string("this <is a <really> short> string", " ");
-    for (std::string vec : getback){
-        std::cout << vec << std::endl;
-        }
-
-    title_print("This is after the cmap call******");
-
-    std::string directory = "/Users/edsilm2/llama.cpp/examples";
-    std::string target = "/Users/edsilm2/llama.cpp/examples/cmap-example/c_help_list.txt";
-    std::unordered_map<std::string, std::unordered_set<std::string>> result;
-
-    // purely diagnostic output
-    for (const std::pair<const std::string, std::vector<std::string, std::allocator<std::string> > > & pair2 : readcommonh_parameters) {
+// purely diagnostic output
+static void output_kv_dump(const std::map<std::string, std::vector<std::string>>& readcommonh_parameters) {
+    for (const std::pair<const std::string, std::vector<std::string, std::allocator<std::string>>> & pair2 : readcommonh_parameters) {
         const std::string& k = pair2.first;
         std::cout << "This is k: " << k.c_str() << ":   ";
         const std::vector<std::string>& v = pair2.second;
         std::cout << "and this is v: " << v[2].c_str() << ".   " << std::endl;
     }
+}
 
-    update_help_file(common_source, target);
+int main() {
+
+    // TODO: ADD LOG FILE USING CODE FROM MAIN.CPP
+    std::string common_source_params = "/Users/edsilm2/llama.cpp/common/common.h";
+    std::string common_source_helpmenu = "/Users/edsilm2/llama.cpp/common/common.cpp";
+    std::map<std::string, std::vector<std::string>> readcommonh_parameters;
+
+    // Get a list of params from common.h; may also need to scan elsewhere in future
+    readcommonh_parameters = cmap(common_source_params);
+
+    // This is just a test run for the conditional divide_string function
+    std::vector<std::string> getback = divide_string("this <is a <really> short> string", " ");
+    for (std::string vec : getback){
+        std::cout << vec << std::endl;
+        }
+
+    // We have completed the search for the params
+    title_print("This is after the cmap call******");
+
+    // We prepare to scan the directory
+    std::string directory = "/Users/edsilm2/llama.cpp/examples";    // this is the directory of files to search
+    std::string target = "/Users/edsilm2/llama.cpp/examples/cmap-example/c_help_list.txt";
+    std::unordered_map<std::string, std::unordered_set<std::string>> result;
+
+    // Acquire the repopulated c_help_list.txt of menu items; copy to help_list.txt
+    update_menu_file(common_source_helpmenu, target);
+
+    // Fix up the discrepancy between command-line and variable names
     replace_dashes_with_underscores(target);
 
-
+    // Get everything we are interested in from directory
     result = find_arguments(directory);
 
     // we get here with c_help_test.txt correctly populated
@@ -663,8 +709,10 @@ int main() {
     // and it contains an absurd number of elements in parameters
     // output_results(result);
 
+    // Sort results (may not be necessary or useful)
     auto sorted_result = convert_to_sorted_vector(result);
 
+    // Process everything and output in three sections
     find_parameters(target, sorted_result, readcommonh_parameters);
 
     /*

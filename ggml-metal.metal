@@ -1247,7 +1247,8 @@ typedef struct {
 } block_q6_K;
 // 210 bytes / block
 
-static inline uchar4 get_scale_min_k4(int j, device const uint8_t * q) {
+/*
+ static inline uchar4 get_scale_min_k4(int j, device const uint8_t * q) {
     uchar4 r;
     if (j < 4) {
         r[0] = q[j+0] & 63;
@@ -1262,6 +1263,7 @@ static inline uchar4 get_scale_min_k4(int j, device const uint8_t * q) {
     }
     return r;
 }
+ */
 
 //====================================== dot products =========================
 

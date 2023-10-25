@@ -29,7 +29,7 @@ def update_file(file_from, file_to = "help_list.txt"):
         for line in matched_lines:
             file.write(line + '\n')
     # make a copy for the python version of the program
-    with open("examples/cmap-example/help_list.txt", "w") as file:
+    with open("cmap-example/help_list.txt", "w") as file:
         for line in matched_lines:
             file.write(line + '\n')
 
@@ -224,7 +224,7 @@ def apps_using_parameter(parameters, result, directory):
 if __name__ == '__main__':
 
    # update the source help file from C++ source (this works exactly as required)
-    update_file("common/common.cpp", "examples/cmap-example/c_help_list.txt")
+    update_file("common/common.cpp", "cmap-example/c_help_list.txt")
 
     # get the parameters from the common.h file utiity we import
     print(readcommonh.parameters)

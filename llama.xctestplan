@@ -1,0 +1,23 @@
+{
+  "configurations" : [
+    {
+      "id" : "4184110C-09C8-43DF-A818-23795D1D79FE",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:",
+      "identifier" : "llama",
+      "name" : "llama"
+    }
+  },
+  "testTargets" : [
+
+  ],
+  "version" : 1
+}

@@ -1,5 +1,5 @@
-# set(TARGETS cmap-example read-dir)
-# add_executable(${TARGETS} cmap-example.cpp read-dir.cpp)
+# set(TARGETS cmap-example read-dir cfindimplementedargs test-file)
+# add_executable(${TARGETS} cmap-example.cpp read-dir.cpp cfindimplementedargs.cpp test-file.cpp)
 # install(TARGETS ${TARGETS} RUNTIME)
 # target_link_libraries(${TARGETS} PRIVATE common llama ${CMAKE_THREAD_LIBS_INIT})
 # target_compile_features(${TARGETS} PRIVATE cxx_std_11)
@@ -17,7 +17,7 @@ add_executable(cfindimplementedargs cfindimplementedargs.cpp)
 add_executable(test-file test-file.cpp)
 
 # Set the desired output executable names
-# set_target_properties(cmap-example read-dir PROPERTIES OUTPUT_NAME "${TARGET_SUFFIX}")
+# set_target_properties(cmap-example read-dir cfindimplementedargs test-file PROPERTIES OUTPUT_NAME "${TARGET_SUFFIX}")
 # get as much information as possible about the unreachable code or whatever
 # set(CMAKE_CXX_FLAGS "-Weverything")
 # set(CMAKE_CXX_FLAGS_DEBUG "-g")
