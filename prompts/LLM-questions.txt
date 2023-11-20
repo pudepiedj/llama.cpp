@@ -47,3 +47,9 @@ In the context of LLMs, what is the "Transformer-model" architecture?
 In the context of LLMs, what is "Multi-Head Attention"?
 In the context of LLMs, what is "Self-Attention"?
 In the context of transformer-model architectures, how do attention mechanisms use masks?
+In the context of report generation and research, what does RAG stand for and mean?
+How sensitive to changes in weight is a neural net's output?
+What is catastrophic forgetting?
+How do we know how to set the weights and biases?
+In the context of LLMs, what is "dropout"?
+What is the impact of different activation functions on the output?
