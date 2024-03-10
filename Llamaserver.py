@@ -113,13 +113,11 @@ if __name__ == "__main__":
     global bar
     lockbar = threading.Lock()
 
-    url = "http://192.168.1.32:8080/completion"
+    url = "http://192.168.1.27:8080/completion"
 
     num_requests = 76
     q = Queue(maxsize = 80)
     threads = []
-
-    bar = make_empty_bar(num_requests)
 
     # api_key = input("What is your API key? ",)
     api_key = "john123456"
@@ -150,6 +148,8 @@ if __name__ == "__main__":
                         "Melanie Klein", "John Puddefoot"]
 
     num_requests = len(philosopher_list)
+
+    bar = make_empty_bar(num_requests)
 
     for i in range(num_requests):
         writer = philosopher_list[i % num_requests]
