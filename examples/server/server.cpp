@@ -121,7 +121,7 @@ struct server_params {
     std::vector<std::string> api_keys;
 
     bool slots_endpoint   = true;
-    bool metrics_endpoint = false;
+    bool metrics_endpoint = true;   // originally set to false but needed for Prometheus
 };
 
 struct server_slot {
@@ -616,6 +616,82 @@ struct server_response {
     }
 };
 
+// experimental/diagostic graphic to show kvcache status
+// requires just `slots` and `params.n_ctx` as parameters
+static void kvgraphics(std::vector<server_slot>& slots) {
+
+    int max_length = 144;
+    int num_blocks = slots.size();
+    size_t slot_cache_size = slots[0].n_ctx;
+    bool cls_flag = true;   // this flag only prevents repeated cls inside one call
+    std::string slot_symbol1 = "";
+    std::string slot_symbol2 = "";
+    std::string slot_symbol3 = "";
+
+    #ifdef DEBUG
+        return; // do not display graphics when in debug build (doesn't seem to work)
+    #endif
+
+    // return if empty
+    if (num_blocks == 0) {
+        return;
+    }
+
+    // Print visualization
+    // Always start at the top left of the window (H means 'move cursor to this position'; 2J = cls)
+    // See eblow for a rethink because controlling log printing is such a pain in C++11
+    // Only clear the screen the first time round
+    if (cls_flag) {
+        printf("\033[2J");
+        cls_flag = false;
+    }
+    printf("\033[1;0H\033[K***************************************\n\033[KLLAMA SERVER KVcache occupancy by slot:\n\033[K***************************************\n");
+
+    // we can know and control how many lines of output we are printing so just start below that and fix the graphics location
+    printf("\033[%d;0H", 5);
+    for(int i=0; i<num_blocks; i++) {
+        int cache_used = slots[i].cache_tokens.size();
+        if (cache_used != 0) {
+            LOG("\nSlot[%d] kvcache token size = %zu.\n", i, slots[i].cache_tokens.size());
+        }
+        //printf("\033[K");  // clear the current line
+        for(int j=0; j < max_length; j++) {
+            int used = cache_used * max_length / slot_cache_size;
+            if((j < max_length / 2) && (j < used)) {
+                printf("\033[90m█\033[0m");
+            } else if (j < used) {
+                printf("\033[94m█\033[0m");
+            } else {
+                printf("\033[91m█\033[0m");
+            }
+        }
+        if(slots[i].state == SLOT_STATE_PROCESSING) {
+            slot_symbol1 = "\u23F0"; // clock symbol = processing
+        } else if(slots[i].state == SLOT_STATE_IDLE) {
+            slot_symbol1 = "\u2705"; // red box white tick
+        } else {
+            slot_symbol1 = "\u274E"; // white cross on read - not doing anything
+        }
+        if(slots[i].command == SLOT_COMMAND_LOAD_PROMPT) {
+            slot_symbol2 = "\u24C1"; // dingbat L symbol = loading
+        } else if(slots[i].command == SLOT_COMMAND_RELEASE) {
+            slot_symbol2 = "\u24C7"; // dingbat R release
+        } else if(slots[i].command == SLOT_COMMAND_NONE) {
+            slot_symbol2 = "\u24C3"; // dingbat N none
+        }
+        if(slots[i].cache_tokens.size() == slot_cache_size) {
+            slot_symbol3 = "\u274E"; // red box white cross
+        } else {
+            slot_symbol3 = "\u22EE";
+        }
+        std::string prompt = slots[i].prompt.dump();
+    printf(" %4zu/%5zu %2d %s %s %s %s\n", slots[i].cache_tokens.size(), slot_cache_size, slots[i].id, slot_symbol1.c_str(), slot_symbol2.c_str(), slot_symbol3.c_str(), prompt.c_str());
+    }
+    printf("\033[5;0H");   // just start two lines below the heading
+    //printf("\n\033[%d;0H\033[%dJ", 10, num_blocks+5);     // move cursor to end of cache display and clear thereafter
+}
+
+
 struct server_context {
     llama_model * model = nullptr;
     llama_context * ctx = nullptr;
@@ -626,6 +702,9 @@ struct server_context {
 
     bool clean_kv_cache = true;
     bool add_bos_token  = true;
+    bool skvgraphics        = false;
+    bool skvinteract        = false;
+
 
     int32_t n_ctx; // total context for all clients / slots
 
@@ -1170,6 +1249,7 @@ struct server_context {
         return json {
             {"n_ctx",                     slot.n_ctx},
             {"n_predict",                 slot.n_predict},
+            {"n_cache_tokens",            slot.cache_tokens.size()},         // added by me as an expt
             {"model",                     params.model_alias},
             {"seed",                      slot.params.seed},
             {"temperature",               slot.sparams.temp},
@@ -1468,10 +1548,11 @@ struct server_context {
                     int n_idle_slots       = 0;
                     int n_processing_slots = 0;
 
-                    for (server_slot & slot : slots) {
+                    for (server_slot & slot : slots) {                          // so this in theory interrogates every slot
                         json slot_data = get_formatted_generation(slot);
                         slot_data["id"]         = slot.id;
                         slot_data["id_task"]    = slot.id_task;
+                        slot_data["cache_tokens"] = slot.cache_tokens.size();
                         slot_data["state"]      = slot.state;
                         slot_data["prompt"]     = slot.prompt;
                         slot_data["next_token"] = {
@@ -2042,7 +2123,13 @@ struct server_context {
             }
         }
 
-        LOG_VERBOSE("slots updated", {});
+        LOG("slots updated; slot[0] cache_token = %zu\n", slots[0].cache_tokens.size());       // was LOG_VERBOSE("slots updates", {});
+
+        // we are still inside llama_server_context so we can use an unqualified parameter
+        if (skvgraphics) {
+            kvgraphics(slots);
+            }
+
 
         return true;
     }
@@ -2172,7 +2259,7 @@ static std::map<std::string, std::vector<std::string>> get_userdata(std::string 
     return records;
 }
 
-static void server_params_parse(int argc, char ** argv, server_params & sparams, gpt_params & params) {
+static void server_params_parse(int argc, char ** argv, server_params & sparams, gpt_params & params, server_context &ctx_server) {
     gpt_params    default_params;
     server_params default_sparams;
 
@@ -2347,6 +2434,14 @@ static void server_params_parse(int argc, char ** argv, server_params & sparams,
                 break;
             }
             params.n_batch = std::stoi(argv[i]);
+        } else if (arg == "-skvg" || arg == "--show-graphics") {
+            ctx_server.skvgraphics = true;       // -skvg takes no parameter so we don't test ++i >= argc
+            ctx_server.skvinteract = false;
+            //log_settings.stdout_target = "/dev/null";   prevent stdout from interfering with the graphics display
+        } else if (arg == "-skvi" || arg == "--show-interactive-graphics") {
+            ctx_server.skvgraphics = true;       // -skvi takes no parameter so we don't test ++i >= argc
+            ctx_server.skvinteract = true;
+            //log_settings.stdout_target = "/dev/null";
         } else if (arg == "--gpu-layers" || arg == "-ngl" || arg == "--n-gpu-layers") {
             if (++i >= argc) {
                 invalid_param = true;
@@ -2636,7 +2731,7 @@ int main(int argc, char ** argv) {
     // struct that contains llama context and inference
     server_context ctx_server;
 
-    server_params_parse(argc, argv, sparams, params);
+    server_params_parse(argc, argv, sparams, params, ctx_server);
 
     if (!sparams.system_prompt.empty()) {
         ctx_server.system_prompt_set(json::parse(sparams.system_prompt));
@@ -2748,26 +2843,80 @@ int main(int argc, char ** argv) {
             ctx_server.queue_results.remove_waiting_task_id(task.id);
 
             res.set_content(result.data["slots"].dump(), "application/json");
-            res.status = 200; // HTTP OK
+            res.status = 200; // HTTP OK - slots data returned as raw json
+
+            json data = result.data["slots"];    // now we prepare slots data for prometheus as well
+            LOG("Result.data in full:\n");
+
+            for (auto& d : data) {
+                LOG("Key: %s\n", d.dump().c_str());
+            }
+
+            /*
+            These are the entries in each slot of result.data["slots"]
+            They do not include the important cache_tokens() vector:
+            {"dynatemp_exponent":1.0,
+            "dynatemp_range":0.0,
+            "frequency_penalty":0.0,
+            "grammar":"",
+            "id":0,
+            "id_task":-1,
+            "ignore_eos":false,
+            "logit_bias":[],
+            "min_keep":0,
+            "min_p":0.05000000074505806,
+            "mirostat":0,
+            "mirostat_eta":0.10000000149011612,
+            "mirostat_tau":5.0,
+            "model":"../models/Mixtral-8x7b/mistral-7b-instruct-v0.2.Q8_0.gguf",
+            "n_ctx":512,
+            "n_keep":0,
+            "n_predict":4096,
+            "n_probs":0,
+            "next_token":{"has_next_token":true,
+                        "n_decoded":0,
+                        "n_remain":-1,
+                        "stopped_eos":false,
+                        "stopped_limit":false,
+                        "stopped_word":false,
+                        "stopping_word":""},
+            "penalize_nl":true,
+            "penalty_prompt_tokens":[],
+            "presence_penalty":0.0,
+            "prompt":null,
+            "repeat_last_n":64,
+            "repeat_penalty":1.100000023841858,
+            "samplers":["top_k","tfs_z","typical_p","top_p","min_p","temperature"],
+            "seed":4294967295,
+            "state":0,
+            "stop":[],
+            "stream":true,
+            "temperature":0.800000011920929,
+            "tfs_z":1.0,
+            "top_k":40,
+            "top_p":0.949999988079071,
+            "typical_p":1.0,
+            "use_penalty_prompt_tokens":false}
+            */
         });
     }
 
     if (sparams.metrics_endpoint) {
         svr.Get("/metrics", [&](const httplib::Request &, httplib::Response & res) {
             // request slots data using task queue
-            server_task task;
-            task.id = ctx_server.queue_tasks.get_new_id();
+            server_task task;                                                   // create a new task instance
+            task.id = ctx_server.queue_tasks.get_new_id();                      // get a new task id
             task.id_multi  = -1;
             task.id_target = -1;
-            task.type = SERVER_TASK_TYPE_METRICS;
-            task.data.push_back({{"reset_bucket", true}});
+            task.type = SERVER_TASK_TYPE_METRICS;                               // define the task type (presumably this can be EXTENDED?)
+            task.data.push_back({{"reset_bucket", true}});                      // reset the task bucket
 
-            ctx_server.queue_results.add_waiting_task_id(task.id);
-            ctx_server.queue_tasks.post(task);
+            ctx_server.queue_results.add_waiting_task_id(task.id);              // queue the task so queue_results expects it
+            ctx_server.queue_tasks.post(task);                                  // push the task to the task queue
 
             // get the result
-            server_task_result result = ctx_server.queue_results.recv(task.id);
-            ctx_server.queue_results.remove_waiting_task_id(task.id);
+            server_task_result result = ctx_server.queue_results.recv(task.id); // get the task result
+            ctx_server.queue_results.remove_waiting_task_id(task.id);           // remove the task from the results queue
 
             json data = result.data;
 
@@ -2780,6 +2929,8 @@ int main(int argc, char ** argv) {
             const int32_t kv_cache_used_cells = data["kv_cache_used_cells"];
 
             // metrics definition: https://prometheus.io/docs/practices/naming/#metric-names
+            // the "name" in each case is the entry to be made into the prometheus "Execute" field
+            // but it must be prefixed with 'llamacpp:' and it will then appear in the preformatted menu list
             json all_metrics_def = json {
                 {"counter", {{
                         {"name",  "prompt_tokens_total"},
@@ -2811,12 +2962,16 @@ int main(int argc, char ** argv) {
                         {"help",  "KV-cache usage. 1 means 100 percent usage."},
                         {"value",  1. * kv_cache_used_cells / params.n_ctx}
                 },{
-                        {"name",  "kv_cache_tokens"},
+                        {"name",  "number_of_kv_cache_tokens"},         // NOTE: this is the total kvcache occupancy and the sum of all the slot occupancy
+                        {"help",  "KV-cache tokens."},
+                        {"value",  (uint64_t) data["kv_cache_tokens_count"]}
+                },{
+                        {"name",  "number_of_kv_cache_tokens"},         // NOTE: this is the total kvcache occupancy and the sum of all the slot occupancy
                         {"help",  "KV-cache tokens."},
                         {"value",  (uint64_t) data["kv_cache_tokens_count"]}
                 },{
                         {"name",  "requests_processing"},
-                        {"help",  "Number of request processing."},
+                        {"help",  "Number of requests processing."},
                         {"value",  (uint64_t) data["processing"]}
                 },{
                         {"name",  "requests_deferred"},
@@ -2825,9 +2980,9 @@ int main(int argc, char ** argv) {
                 }}}
             };
 
-            std::stringstream prometheus;
+            std::stringstream prometheus;   // create an instance of stringstream called prometheus
 
-            for (const auto & el : all_metrics_def.items()) {
+            for (const auto & el : all_metrics_def.items()) {   // cycle through all metrics defined above
                 const auto & type        = el.key();
                 const auto & metrics_def = el.value();
 
@@ -2850,7 +3005,7 @@ int main(int argc, char ** argv) {
         });
     }
 
-    svr.set_logger(log_server_request);
+    svr.set_logger(log_server_request); // move logs to whatever log_server_request details
 
     svr.set_exception_handler([](const httplib::Request &, httplib::Response & res, std::exception_ptr ep) {
         const char fmt[] = "500 Internal Server Error\n%s";

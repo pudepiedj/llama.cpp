@@ -145,14 +145,15 @@ if __name__ == "__main__":
 
     philosopher_list = ["Blaise Pascal", "Thomas Hobbes", "Georg Frederik Hegel", "Søren Kierkegaard", "Karl Marx", "Arthur Schopenhauer",
                         "Ludwig Feuerbach", "Friedrich Nietzsche", "Max Weber", "Sigmund Freud", "Carl Jung",
-                        "Melanie Klein", "John Puddefoot"]
+                        "Melanie Klein", "John Puddefoot", "Derek Parfit",
+                        "David Hume", "John Locke", "René Descartes", "Ludwig Wittgenstein"]
 
-    num_requests = len(philosopher_list)
+    num_requests = len(writer_list)
 
     bar = make_empty_bar(num_requests)
 
     for i in range(num_requests):
-        writer = philosopher_list[i % num_requests]
+        writer = writer_list[i % num_requests]
         question = f"Tell me about the writings of {writer}."
         # NOTE: don't pass the parameter as a function call; pass in args
         print(f"Processing request {i} / {num_requests}: {question}\n")
