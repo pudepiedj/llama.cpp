@@ -660,7 +660,7 @@ static void kvgraphics(std::vector<server_slot>& slots) {
     // we can know and control how many lines of output we are printing so just start below that and fix the graphics location
     printf("\033[%d;0H", 5);
     for(int i=0; i<num_blocks; i++) {
-        int cache_used = slots[i].cache_tokens.size();
+        int cache_used = slots[i].n_decoded;    // was slots[i].cache_tokens.size()
         if (cache_used != 0) {
             LOG("\nSlot[%d] kvcache token size = %zu.\n", i, slots[i].cache_tokens.size());
         }
@@ -695,7 +695,7 @@ static void kvgraphics(std::vector<server_slot>& slots) {
             slot_symbol3 = "\u22EE";
         }
         std::string prompt = slots[i].prompt.dump();
-    printf(" %4zu/%5zu %2d %s %s %s %s\n", slots[i].cache_tokens.size(), slot_cache_size, slots[i].id, slot_symbol1.c_str(), slot_symbol2.c_str(), slot_symbol3.c_str(), prompt.c_str());
+    printf(" %4d/%5zu %2d %s %s %s %s\n", slots[i].n_decoded, slot_cache_size, slots[i].id, slot_symbol1.c_str(), slot_symbol2.c_str(), slot_symbol3.c_str(), prompt.c_str());
     }
     printf("\033[5;0H");   // just start two lines below the heading
     //printf("\n\033[%d;0H\033[%dJ", 10, num_blocks+5);     // move cursor to end of cache display and clear thereafter
@@ -2217,9 +2217,6 @@ struct server_context {
         if (skvgraphics) {
             kvgraphics(slots);
             }
-
-
-        return true;
     }
 
     json model_meta() const {
@@ -3184,8 +3181,7 @@ int main(int argc, char ** argv) {
             "typical_p":1.0,
             "use_penalty_prompt_tokens":false}
             */
-        });
-    }
+    };
 
     const auto handle_metrics = [&](const httplib::Request &, httplib::Response & res) {
         if (!sparams.metrics_endpoint) {
@@ -3209,9 +3205,6 @@ int main(int argc, char ** argv) {
         // get the result
         server_task_result result = ctx_server.queue_results.recv(task.id);
         ctx_server.queue_results.remove_waiting_task_id(task.id);
-            // get the result
-            server_task_result result = ctx_server.queue_results.recv(task.id); // get the task result
-            ctx_server.queue_results.remove_waiting_task_id(task.id);           // remove the task from the results queue
 
         json data = result.data;
 
