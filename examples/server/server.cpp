@@ -1291,6 +1291,7 @@ struct server_context {
             {"n_ctx",                     slot.n_ctx},
             {"n_predict",                 slot.n_predict},
             {"n_cache_tokens",            slot.cache_tokens.size()},         // added by me as an expt
+            {"n_decoded",                 slot.n_decoded},         // added by me as an expt
             {"model",                     params.model_alias},
             {"seed",                      slot.params.seed},
             {"temperature",               slot.sparams.temp},
@@ -2211,7 +2212,7 @@ struct server_context {
             }
         }
 
-        LOG("slots updated; slot[0] cache_token = %zu\n", slots[0].cache_tokens.size());       // was LOG_VERBOSE("slots updates", {});
+        LOG("slots updated; slot[0] number decoded = %d\n", slots[0].n_decoded);       // was LOG_VERBOSE("slots updates", {});
 
         // we are still inside llama_server_context so we can use an unqualified parameter
         if (skvgraphics) {
@@ -3217,8 +3218,8 @@ int main(int argc, char ** argv) {
         const int32_t kv_cache_used_cells = data["kv_cache_used_cells"];
 
         // metrics definition: https://prometheus.io/docs/practices/naming/#metric-names
-            // the "name" in each case is the entry to be made into the prometheus "Execute" field
-            // but it must be prefixed with 'llamacpp:' and it will then appear in the preformatted menu list
+        // the "name" in each case is the entry to be made into the prometheus "Execute" field
+        // but it must be prefixed with 'llamacpp:' and it will then appear in the preformatted menu list
         json all_metrics_def = json {
             {"counter", {{
                     {"name",  "prompt_tokens_total"},
@@ -3232,6 +3233,10 @@ int main(int argc, char ** argv) {
                     {"name",  "tokens_predicted_total"},
                     {"help",  "Number of generation tokens processed."},
                     {"value",  (uint64_t) data["n_tokens_predicted_total"]}
+            }, {
+                    {"name",  "kv_cache_tokens_used"},      // added by me
+                    {"help",  "Number of kvcache tokens consumed."},
+                    {"value",  (uint64_t) data["kv_cache_used_cells"]}
             }, {
                     {"name",  "tokens_predicted_seconds_total"},
                     {"help",  "Predict process time"},
@@ -3271,14 +3276,14 @@ int main(int argc, char ** argv) {
         std::stringstream prometheus;   // create an instance of stringstream called prometheus
 
         for (const auto & el : all_metrics_def.items()) {   // cycle through all metrics defined above
-            const auto & type        = el.key();
-            const auto & metrics_def = el.value();
+            const auto & type        = el.key();            // el will be counter, gauge
+            const auto & metrics_def = el.value();          // metrice_def will be name, help, value
 
-            for (const auto & metric_def : metrics_def) {
+            for (const auto & metric_def : metrics_def) {   // iterate through the dictionary key-value pairs
                 const std::string name = metric_def["name"];
                 const std::string help = metric_def["help"];
-
                 auto value = json_value(metric_def, "value", 0.);
+
                 prometheus << "# HELP llamacpp:" << name << " " << help  << "\n"
                             << "# TYPE llamacpp:" << name << " " << type  << "\n"
                             << "llamacpp:"        << name << " " << value << "\n";
