@@ -98,7 +98,7 @@ static inline void server_log(
         std::cerr << "Error on redirecting stderr to " << stderr_target.c_str() << std::endl;
     }
 
-    if (server_log_json) {  // these are the first entries in the routine logging; LOG_INFO provides others
+    if (server_log_json) {  // first entries in the routine json logging; none if text format selected
         log.merge_patch( {
             {"level",    level},
             {"function", function},
@@ -111,7 +111,7 @@ static inline void server_log(
         }
 
         std::cerr << log.dump(-1, ' ', false, json::error_handler_t::replace) << "\n" << std::flush;    // was originally std:cout
-    } else {
+    } else {        // we are in text format mode
         char buf[1024];
         snprintf(buf, 1024, "%4s [%24s] %s", level, function, message);
 
@@ -127,7 +127,7 @@ static inline void server_log(
         }
 
         const std::string str = ss.str();
-        printf("%.*s\n", (int)str.size(), str.data());
+        LOG("%.*s\n", (int)str.size(), str.data()); // was originally printf
         fflush(stderr);
     }
 }
