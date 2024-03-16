@@ -660,9 +660,10 @@ static void kvgraphics(std::vector<server_slot>& slots) {
     // we can know and control how many lines of output we are printing so just start below that and fix the graphics location
     printf("\033[%d;0H", 5);
     for(int i=0; i<num_blocks; i++) {
-        int cache_used = slots[i].n_decoded;    // was slots[i].cache_tokens.size()
-        if (cache_used != 0) {
-            LOG("\nSlot[%d] kvcache token size = %zu.\n", i, slots[i].cache_tokens.size());
+        int cache_used = slots[i].n_decoded;
+        int kvcache_used = slots[i].cache_tokens.size();
+        if ((cache_used != 0) && (kvcache_used != 0)) {
+            LOG("\nSlot[%d] kvcache token size = %zu; cache used (n_decoded): %zu.\n", i, kvcache_used, cache_used);
         }
         //printf("\033[K");  // clear the current line
         for(int j=0; j < max_length; j++) {
