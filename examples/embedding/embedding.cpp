@@ -175,7 +175,7 @@ int main(int argc, char ** argv) {
     batch_decode(ctx, batch, out, s, n_embd);
 
     // print the first part of the embeddings
-    fprintf(stdout, "\n");
+    fprintf(stdout, "Showing 16 of %d values per embedding\n", n_embd);
     for (int j = 0; j < n_prompts; j++) {
         fprintf(stdout, "embedding %d: ", j);
         for (int i = 0; i < std::min(16, n_embd); i++) {

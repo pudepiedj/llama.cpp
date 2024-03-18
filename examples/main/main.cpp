@@ -888,6 +888,7 @@ int main(int argc, char ** argv) {
                     // instruct mode: insert response suffix
                     if (params.instruct) {
                         LOG("inserting instruction suffix\n");
+                        printf("Mistral: ");
                         embd_inp.insert(embd_inp.end(), inp_sfx.begin(), inp_sfx.end());
                     }
                     // chatml mode: insert assistant chat suffix

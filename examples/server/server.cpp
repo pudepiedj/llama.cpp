@@ -663,7 +663,7 @@ static void kvgraphics(std::vector<server_slot>& slots) {
         int cache_used = slots[i].n_decoded;
         int kvcache_used = slots[i].cache_tokens.size();
         if ((cache_used != 0) && (kvcache_used != 0)) {
-            LOG("\nSlot[%d] kvcache token size = %zu; cache used (n_decoded): %zu.\n", i, kvcache_used, cache_used);
+            LOG("\nSlot[%d] kvcache token size = %d; cache used (n_decoded): %d.\n", i, kvcache_used, cache_used);
         }
         //printf("\033[K");  // clear the current line
         for(int j=0; j < max_length; j++) {
@@ -696,7 +696,7 @@ static void kvgraphics(std::vector<server_slot>& slots) {
             slot_symbol3 = "\u22EE";
         }
         std::string prompt = slots[i].prompt.dump();
-    printf(" %4d/%5zu %2d %s %s %s %s\n", slots[i].n_decoded, slot_cache_size, slots[i].id, slot_symbol1.c_str(), slot_symbol2.c_str(), slot_symbol3.c_str(), prompt.c_str());
+    printf(" %4d/%5zu %2d %s %s %s %s\n", slots[i].n_decoded, slot_cache_size, slots[i].id, slot_symbol1.c_str(), slot_symbol2.c_str(), slot_symbol3.c_str(), prompt.substr(0,75).c_str());
     }
     printf("\033[5;0H");   // just start two lines below the heading
     //printf("\n\033[%d;0H\033[%dJ", 10, num_blocks+5);     // move cursor to end of cache display and clear thereafter
