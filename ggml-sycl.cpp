@@ -977,8 +977,10 @@ namespace dpct
         static int convert_backend_index(std::string & backend) {
             if (backend == "ext_oneapi_level_zero:gpu") return 0;
             if (backend == "opencl:gpu") return 1;
-            if (backend == "opencl:cpu") return 2;
-            if (backend == "opencl:acc") return 3;
+            if (backend == "ext_oneapi_cuda:gpu") return 2;
+            if (backend == "ext_oneapi_hip:gpu") return 3;
+            if (backend == "opencl:cpu") return 4;
+            if (backend == "opencl:acc") return 5;
             printf("convert_backend_index: can't handle backend=%s\n", backend.c_str());
             GGML_ASSERT(false);
         }
@@ -17390,6 +17392,7 @@ static ggml_backend_i ggml_backend_sycl_interface = {
     /* .graph_plan_compute      = */ NULL,
     /* .graph_compute           = */ ggml_backend_sycl_graph_compute,
     /* .supports_op             = */ ggml_backend_sycl_supports_op,
+    /* .offload_op              = */ NULL,
     /* .event_new               = */ NULL,
     /* .event_free              = */ NULL,
     /* .event_record            = */ NULL,
