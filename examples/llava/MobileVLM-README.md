@@ -6,7 +6,7 @@ for more information, please go to [Meituan-AutoML/MobileVLM](https://github.com
 
 The implementation is based on llava, and is compatible with llava and mobileVLM. The usage is basically same as llava.
 
-Notice: The overall process of model inference for both **MobileVLM** and **MobileVLM_V2** models is the same, but the process of model conversion  is a little different. Therefore, using MobiVLM as an example, the different conversion step will be shown.
+Notice: The overall process of model inference for both **MobileVLM** and **MobileVLM_V2** models is the same, but the process of model conversion  is a little different. Therefore, using MobileVLM as an example, the different conversion step will be shown.
 
 ## Usage
 Build with cmake or run `make llava-cli` to build it.
@@ -124,7 +124,7 @@ llama_print_timings:       total time =   34570.79 ms
 ## Orin compile and run
 ### compile
 ```sh
-make LLAMA_CUBLAS=1 CUDA_DOCKER_ARCH=sm_87 LLAMA_CUDA_F16=1 -j 32
+make LLAMA_CUDA=1 CUDA_DOCKER_ARCH=sm_87 LLAMA_CUDA_F16=1 -j 32
 ```
 
 ### run on Orin
