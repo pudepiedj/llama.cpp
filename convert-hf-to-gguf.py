@@ -160,7 +160,7 @@ class Model(ABC):
                 data = data.astype(np.float32)
 
             # TODO: Why cant we use these float16 as-is? There should be not reason to store float16 as float32
-            if self.ftype == 1 and data_dtype == np.float16 and n_dims == 1:
+            if self.ftype == 1 and data_dtype == np.float16 and (n_dims == 1 or new_name.endswith("_norm.weight")):
                 data = data.astype(np.float32)
 
             # if f16 desired, convert any float32 2-dim weight tensors to float16
@@ -227,15 +227,14 @@ class Model(ABC):
             return ("pytorch_model.bin",)
         return (f"pytorch_model-{n:05}-of-{self.num_parts:05}.bin" for n in range(1, self.num_parts + 1))
 
-    def _set_vocab_gpt2(self):
-        dir_model = self.dir_model
-        hparams = self.hparams
+    # used for GPT-2 BPE and WordPiece vocabs
+    def get_basic_vocab(self) -> tuple[list[str], list[int]]:
         tokens: list[str] = []
         toktypes: list[int] = []
 
         from transformers import AutoTokenizer
-        tokenizer = AutoTokenizer.from_pretrained(dir_model)
-        vocab_size = hparams.get("vocab_size", len(tokenizer.vocab))
+        tokenizer = AutoTokenizer.from_pretrained(self.dir_model)
+        vocab_size = self.hparams.get("vocab_size", len(tokenizer.vocab))
         assert max(tokenizer.vocab.values()) < vocab_size
 
         reverse_vocab = {id_: encoded_tok for encoded_tok, id_ in tokenizer.vocab.items()}
@@ -255,11 +254,15 @@ class Model(ABC):
                 tokens.append(reverse_vocab[i])
                 toktypes.append(gguf.TokenType.NORMAL)
 
+        return tokens, toktypes
+
+    def _set_vocab_gpt2(self) -> None:
+        tokens, toktypes = self.get_basic_vocab()
         self.gguf_writer.add_tokenizer_model("gpt2")
         self.gguf_writer.add_token_list(tokens)
         self.gguf_writer.add_token_types(toktypes)
 
-        special_vocab = gguf.SpecialVocab(dir_model, load_merges=True)
+        special_vocab = gguf.SpecialVocab(self.dir_model, load_merges=True)
         special_vocab.add_to_gguf(self.gguf_writer)
 
     def _set_vocab_qwen(self):
@@ -323,8 +326,7 @@ class Model(ABC):
         toktypes: list[int] = []
 
         if not tokenizer_path.is_file():
-            print(f'Error: Missing {tokenizer_path}', file=sys.stderr)
-            sys.exit(1)
+            raise FileNotFoundError(f"File not found: {tokenizer_path}")
 
         tokenizer = SentencePieceProcessor(str(tokenizer_path))
         vocab_size = self.hparams.get('vocab_size', tokenizer.vocab_size())
@@ -511,6 +513,17 @@ class BloomModel(Model):
 class MPTModel(Model):
     model_arch = gguf.MODEL_ARCH.MPT
 
+    def set_vocab(self):
+        try:
+            self._set_vocab_gpt2()
+        except Exception:
+            # Fallback for SEA-LION model
+            self._set_vocab_sentencepiece()
+            self.gguf_writer.add_add_bos_token(False)
+            self.gguf_writer.add_pad_token_id(3)
+            self.gguf_writer.add_eos_token_id(1)
+            self.gguf_writer.add_unk_token_id(0)
+
     def set_gguf_parameters(self):
         block_count = self.hparams["n_layers"]
         self.gguf_writer.add_name(self.dir_model.name)
@@ -524,7 +537,10 @@ class MPTModel(Model):
         self.gguf_writer.add_layer_norm_eps(1e-5)
         if self.hparams["attn_config"]["clip_qkv"] is not None:
             self.gguf_writer.add_clamp_kqv(self.hparams["attn_config"]["clip_qkv"])
-        self.gguf_writer.add_max_alibi_bias(self.hparams["attn_config"]["alibi_bias_max"])
+        if self.hparams["attn_config"]["alibi"]:
+            self.gguf_writer.add_max_alibi_bias(self.hparams["attn_config"]["alibi_bias_max"])
+        else:
+            self.gguf_writer.add_max_alibi_bias(0.0)
 
     def write_tensors(self):
         block_count = self.hparams.get("n_layers", self.hparams.get("num_hidden_layers"))
@@ -1216,6 +1232,8 @@ class LlamaModel(Model):
         tensor_map = gguf.get_tensor_name_map(self.model_arch, block_count)
         n_head = self.hparams.get("num_attention_heads")
         n_kv_head = self.hparams.get("num_key_value_heads")
+        n_experts = self.hparams.get("num_local_experts")
+        experts = dict()
         for name, data_torch in self.get_tensors():
             # we don't need these
             if name.endswith((".attention.masked_bias", ".attention.bias", ".attention.rotary_emb.inv_freq")):
@@ -1235,6 +1253,153 @@ class LlamaModel(Model):
                 data = permute(data, n_head, n_kv_head)
 
             data = data.squeeze()
+
+            # process the experts separately
+            if name.find("block_sparse_moe.experts") != -1:
+                experts[name] = data
+                if len(experts) >= n_experts:
+                    # merge the experts into a single 3d tensor
+                    for bid in range(block_count):
+                        for wid in range(1, 4):
+                            full = True
+                            for xid in range(n_experts):
+                                ename = f"model.layers.{bid}.block_sparse_moe.experts.{xid}.w{wid}.weight"
+                                if ename not in experts:
+                                    full = False
+                                    break
+                            if not full:
+                                continue
+
+                            datas = []
+                            for xid in range(n_experts):
+                                ename = f"model.layers.{bid}.block_sparse_moe.experts.{xid}.w{wid}.weight"
+                                datas.append(experts[ename])
+                                del experts[ename]
+
+                            data = np.stack(datas, axis=0)
+                            data_dtype = data.dtype
+
+                            if self.ftype == 0 and data_dtype == np.float16:
+                                data = data.astype(np.float32)
+
+                            if self.ftype == 1 and data_dtype == np.float32:
+                                data = data.astype(np.float16)
+
+                            merged_name = f"layers.{bid}.feed_forward.experts.w{wid}.weight"
+
+                            new_name = tensor_map.get_name(merged_name, try_suffixes=(".weight", ".bias"))
+                            if new_name is None:
+                                print(f"Can not map tensor {name!r}")
+                                sys.exit()
+
+                            print(f"{new_name}, n_dims = {len(data.shape)}, shape = {data.shape} --> {data.dtype}")
+
+                            self.gguf_writer.add_tensor(new_name, data)
+                continue
+
+            # map tensor names
+            new_name = tensor_map.get_name(name, try_suffixes=(".weight", ".bias"))
+            if new_name is None:
+                print(f"Can not map tensor {name!r}")
+                sys.exit()
+
+            n_dims = len(data.shape)
+            data_dtype = data.dtype
+
+            # if f32 desired, convert any float16 to float32
+            if self.ftype == 0 and data_dtype == np.float16:
+                data = data.astype(np.float32)
+
+            # 1d tensors need to be converted to float32
+            if self.ftype == 1 and data_dtype == np.float16 and n_dims == 1:
+                data = data.astype(np.float32)
+
+            # if f16 desired, convert any float32 2-dim weight tensors to float16
+            if self.ftype == 1 and data_dtype == np.float32 and name.endswith(".weight") and n_dims == 2:
+                data = data.astype(np.float16)
+
+            print(f"{new_name}, n_dims = {n_dims}, {old_dtype} --> {data.dtype}")
+
+            self.gguf_writer.add_tensor(new_name, data)
+
+        if len(experts) > 0:
+            raise ValueError(f"Unprocessed experts: {experts.keys()}")
+
+
+@Model.register("GrokForCausalLM")
+class GrokModel(Model):
+    model_arch = gguf.MODEL_ARCH.GROK
+
+    def set_vocab(self):
+        self._set_vocab_sentencepiece()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def set_gguf_parameters(self):
+        super().set_gguf_parameters()
+        self.gguf_writer.add_name("Grok")
+
+    def write_tensors(self):
+        block_count = self.hparams.get("n_layers", self.hparams.get("num_hidden_layers", self.hparams.get("n_layer")))
+        tensor_map = gguf.get_tensor_name_map(self.model_arch, block_count)
+        n_experts = self.hparams.get("num_local_experts")
+        experts = dict()
+        for name, data_torch in self.get_tensors():
+            # we don't need these
+            if name.endswith((".attention.masked_bias", ".attention.bias", ".attention.rotary_emb.inv_freq")):
+                continue
+
+            old_dtype = data_torch.dtype
+
+            # convert any unsupported data types to float32
+            if data_torch.dtype not in (torch.float16, torch.float32):
+                data_torch = data_torch.to(torch.float32)
+
+            data = data_torch.squeeze().numpy()
+
+            # process the experts separately
+            if name.find(".moe.") != -1:
+                experts[name] = data
+                if len(experts) >= n_experts:
+                    # merge the experts into a single 3d tensor
+                    for bid in range(block_count):
+                        for wid in ["linear", "linear_1", "linear_v"]:
+                            full = True
+                            for xid in range(n_experts):
+                                ename = f"transformer.decoder_layer.{bid}.moe.{xid}.{wid}.weight"
+                                if ename not in experts:
+                                    full = False
+                                    break
+                            if not full:
+                                continue
+
+                            datas = []
+                            for xid in range(n_experts):
+                                ename = f"transformer.decoder_layer.{bid}.moe.{xid}.{wid}.weight"
+                                datas.append(experts[ename])
+                                del experts[ename]
+
+                            data = np.stack(datas, axis=0)
+                            data_dtype = data.dtype
+
+                            if self.ftype == 0 and data_dtype == np.float16:
+                                data = data.astype(np.float32)
+
+                            if self.ftype == 1 and data_dtype == np.float32:
+                                data = data.astype(np.float16)
+
+                            merged_name = f"transformer.decoder_layer.{bid}.moe.{wid}.weight"
+
+                            new_name = tensor_map.get_name(merged_name, try_suffixes=(".weight", ".bias"))
+                            if new_name is None:
+                                print(f"Can not map tensor {name!r}")
+                                sys.exit()
+
+                            print(f"{new_name}, n_dims = {len(data.shape)}, shape = {data.shape} --> {data.dtype}")
+
+                            self.gguf_writer.add_tensor(new_name, data)
+                continue
 
             # map tensor names
             new_name = tensor_map.get_name(name, try_suffixes=(".weight", ".bias"))
@@ -1260,21 +1425,6 @@ class LlamaModel(Model):
             print(f"{new_name}, n_dims = {n_dims}, {old_dtype} --> {data.dtype}")
 
             self.gguf_writer.add_tensor(new_name, data)
-
-
-@Model.register("GrokForCausalLM")
-class GrokModel(Model):
-    model_arch = gguf.MODEL_ARCH.GROK
-
-    def set_vocab(self):
-        self._set_vocab_sentencepiece()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def set_gguf_parameters(self):
-        super().set_gguf_parameters()
-        self.gguf_writer.add_name("Grok")
 
 
 @Model.register("MiniCPMForCausalLM")
@@ -1896,34 +2046,25 @@ class BertModel(Model):
             self.gguf_writer.add_pooling_type(pooling_type)
 
     def set_vocab(self):
-        # use huggingface vocab to get all tokens
-        vocab = LlamaHfVocab(self.dir_model, ignore_nonllama=True)
-        tokens, scores, toktypes = zip(*vocab.all_tokens())
-        assert len(tokens) == vocab.vocab_size
-        self.vocab_size = vocab.vocab_size
+        tokens, toktypes = self.get_basic_vocab()
+        self.vocab_size = len(tokens)
 
         # we need this to validate the size of the token_type embeddings
         # though currently we are passing all zeros to the token_type embeddings
-        n_token_types = len(set(toktypes))
-        self.gguf_writer.add_token_type_count(n_token_types)
+        self.gguf_writer.add_token_type_count(2)  # "Sequence A" or "Sequence B"
 
         # convert to phantom space vocab
-        def phantom(tok, typ):
-            if tok.startswith(b"[") and tok.endswith(b"]"):
+        def phantom(tok):
+            if tok.startswith("[") and tok.endswith("]"):
                 return tok
-            if tok.startswith(b"##"):
+            if tok.startswith("##"):
                 return tok[2:]
-            return b"\xe2\x96\x81" + tok
-        tokens = tuple(phantom(t, y) for t, y in zip(tokens, toktypes))
-
-        # set up bos and eos tokens (cls and sep)
-        self.gguf_writer.add_bos_token_id(vocab.tokenizer.cls_token_id)
-        self.gguf_writer.add_eos_token_id(vocab.tokenizer.sep_token_id)
+            return "\u2581" + tok
+        tokens = list(map(phantom, tokens))
 
         # add vocab to gguf
         self.gguf_writer.add_tokenizer_model("bert")
         self.gguf_writer.add_token_list(tokens)
-        self.gguf_writer.add_token_scores(scores)
         self.gguf_writer.add_token_types(toktypes)
 
         # handle special tokens
@@ -1994,16 +2135,6 @@ class NomicBertModel(BertModel):
     def set_gguf_parameters(self):
         super().set_gguf_parameters()
         self.gguf_writer.add_rope_freq_base(self.hparams["rotary_emb_base"])
-
-    def get_tensors(self):
-        assert self.vocab_size is not None
-        for name, data in super().get_tensors():
-            # Nomic Embed's token embeddings tensor is padded, but llama.cpp wants tensor sizes to match exactly.
-            if name == 'embeddings.word_embeddings.weight' and data.shape[1] != self.vocab_size:
-                rounded_vocab_size = (self.vocab_size + 63) // 64 * 64
-                assert data.shape == (rounded_vocab_size, self.hparams["n_embd"])
-                data = data[:self.vocab_size, :]
-            yield name, data
 
 
 @Model.register("GemmaForCausalLM")
@@ -2180,7 +2311,8 @@ class MambaModel(Model):
                 data = data.astype(np.float32)
 
             # if f16 desired, convert big float32 2-dim weight tensors to float16
-            if self.ftype == 1 and data_dtype == np.float32 and new_name.removesuffix(".weight").endswith((".ssm_in", ".ssm_out", "token_embd", "output")) and n_dims == 2:
+            new_weight_name = new_name[:-len(".weight")] if new_name.endswith(".weight") else ""
+            if self.ftype == 1 and data_dtype == np.float32 and new_weight_name.endswith((".ssm_in", ".ssm_out", "token_embd", "output")) and n_dims == 2:
                 data = data.astype(np.float16)
 
             print(f"{new_name}, n_dims = {n_dims}, {old_dtype} --> {data.dtype}")
