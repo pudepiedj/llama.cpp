@@ -25,18 +25,6 @@ enum error_type {
     ERROR_TYPE_NOT_SUPPORTED, // custom error
 };
 
-// ATTEMPT TO REFACTOR THE LOGGING BEHAVIOUR AND ALLOW REDIRECTION OF STDOUT, STDERR
-
-struct LogRedirection {
-  // Set default values for redirection targets and reset strings
-  std::string stdout_target = "stdout.log"; // if a log it will be in ./build and eventually overwritten
-  //std::string stdout_reset = "/dev/stdout";
-  std::string stderr_target = "stderr.log"; // will be in ./build and eventually overwritten
-  //std::string stderr_reset = "/dev/stderr";
-};
-
-LogRedirection log_settings;    // TODO: avoid global declaration
-
 extern bool server_verbose;
 extern bool server_log_json;
 
@@ -52,14 +40,14 @@ extern bool server_log_json;
     {                                                                    \
         if (server_verbose)                                              \
         {                                                                \
-            server_log("VERB", __func__, __LINE__, MSG, __VA_ARGS__, log_settings.stdout_target, log_settings.stderr_target); \
+            server_log("VERB", __func__, __LINE__, MSG, __VA_ARGS__); \
         }                                                                \
     } while (0)
 #endif
 
-#define LOG_ERROR(  MSG, ...) server_log("ERR",  __func__, __LINE__, MSG, __VA_ARGS__, log_settings.stdout_target, log_settings.stderr_target)
-#define LOG_WARNING(MSG, ...) server_log("WARN", __func__, __LINE__, MSG, __VA_ARGS__, log_settings.stdout_target, log_settings.stderr_target)
-#define LOG_INFO(   MSG, ...) server_log("INFO", __func__, __LINE__, MSG, __VA_ARGS__, log_settings.stdout_target, log_settings.stderr_target)
+#define LOG_ERROR(  MSG, ...) server_log("ERR",  __func__, __LINE__, MSG, __VA_ARGS__)
+#define LOG_WARNING(MSG, ...) server_log("WARN", __func__, __LINE__, MSG, __VA_ARGS__)
+#define LOG_INFO(   MSG, ...) server_log("INFO", __func__, __LINE__, MSG, __VA_ARGS__)
 
 static inline void server_log(const char *level, const char *function, int line, const char *message, const nlohmann::ordered_json &extra);
 
@@ -80,14 +68,7 @@ static T json_value(const json &body, const std::string &key, const T &default_v
     }
 }
 
-static inline void server_log(
-    const char *level,
-    const char *function,
-    int line,
-    const char *message,
-    const nlohmann::ordered_json &extra,
-    std::string stdout_target,
-    std::string stderr_target) {
+static inline void server_log(const char *level, const char *function, int line, const char *message, const nlohmann::ordered_json &extra) {
     std::stringstream ss_tid;
     ss_tid << std::this_thread::get_id();
     json log = nlohmann::ordered_json{
@@ -95,21 +76,7 @@ static inline void server_log(
         {"timestamp", time(nullptr)},
     };
 
-    // redirect output logs to a file instead of the screen
-    //FILE* new_stdout = freopen(stdout_target.c_str(), "a", stdout);
-    //if (new_stdout == nullptr) {
-    //    printf("Error on redirecting stdout to %s\n", stdout_target.c_str());
-    //}
-
-    stdout_target = "";     // to silence the declaration of unused variable warnings
-    // stdout_reset = "";
-
-    FILE* new_stderr = freopen(stderr_target.c_str(), "a", stderr);
-    if (new_stderr == nullptr) {
-        std::cerr << "Error on redirecting stderr to " << stderr_target.c_str() << std::endl;
-    }
-
-    if (server_log_json) {  // first entries in the routine json logging; none if text format selected
+    if (server_log_json) {
         log.merge_patch( {
             {"level",    level},
             {"function", function},
@@ -121,8 +88,8 @@ static inline void server_log(
             log.merge_patch(extra);
         }
 
-        std::cerr << log.dump(-1, ' ', false, json::error_handler_t::replace) << "\n" << std::flush;    // was originally std:cout
-    } else {        // we are in text format mode
+        printf("%s\n", log.dump(-1, ' ', false, json::error_handler_t::replace).c_str());
+    } else {
         char buf[1024];
         snprintf(buf, 1024, "%4s [%24s] %s", level, function, message);
 
@@ -138,11 +105,11 @@ static inline void server_log(
         }
 
         const std::string str = ss.str();
-        LOG("%.*s\n", (int)str.size(), str.data()); // was originally printf
-        fflush(stderr);
+        printf("%.*s\n", (int)str.size(), str.data());
     }
     fflush(stdout);
 }
+
 
 //
 // chat template utils
