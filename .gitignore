@@ -93,6 +93,9 @@ ppl-*.txt
 qnt-*.txt
 perf-*.txt
 
+# Store for conversations and run logs invoked at run-time
+/MyDocs 
+
 # Examples
 
 examples/jeopardy/results.txt
