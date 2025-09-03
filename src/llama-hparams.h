@@ -9,9 +9,10 @@
 #define LLAMA_MAX_EXPERTS 384  // Kimi-K2
 
 enum llama_expert_gating_func_type {
-    LLAMA_EXPERT_GATING_FUNC_TYPE_NONE    = 0,
-    LLAMA_EXPERT_GATING_FUNC_TYPE_SOFTMAX = 1,
-    LLAMA_EXPERT_GATING_FUNC_TYPE_SIGMOID = 2,
+    LLAMA_EXPERT_GATING_FUNC_TYPE_NONE           = 0,
+    LLAMA_EXPERT_GATING_FUNC_TYPE_SOFTMAX        = 1,
+    LLAMA_EXPERT_GATING_FUNC_TYPE_SIGMOID        = 2,
+    LLAMA_EXPERT_GATING_FUNC_TYPE_SOFTMAX_WEIGHT = 3, // applied to the router weights instead of the logits
 };
 
 enum llama_swa_type {
@@ -40,6 +41,7 @@ struct llama_hparams {
     uint32_t n_embd;
     uint32_t n_embd_features = 0;
     uint32_t n_layer;
+     int32_t n_layer_kv_from_start = -1; // if non-negative, the first n_layer_kv_from_start layers have KV cache
     uint32_t n_rot;
     uint32_t n_embd_head_k; // dimension of keys (d_k). d_q is assumed to be the same, but there are n_head q heads, and only n_head_kv k-v heads
     uint32_t n_embd_head_v; // dimension of values (d_v) aka n_embd_head
@@ -73,6 +75,7 @@ struct llama_hparams {
     bool     expert_weights_norm  = false;
     uint32_t expert_gating_func   = LLAMA_EXPERT_GATING_FUNC_TYPE_NONE;
     uint32_t moe_every_n_layers   = 0;
+    uint32_t nextn_predict_layers = 0;
 
     float f_norm_eps;
     float f_norm_rms_eps;
@@ -219,6 +222,11 @@ struct llama_hparams {
     uint32_t n_pos_per_embd() const;
 
     bool is_swa(uint32_t il) const;
+
+    bool has_kv(uint32_t il) const;
+
+    // number of layers for which has_kv() returns true
+    uint32_t n_layer_kv() const;
 };
 
 static_assert(std::is_trivially_copyable<llama_hparams>::value, "llama_hparams must be trivially copyable");
