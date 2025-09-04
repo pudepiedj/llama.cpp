@@ -17,7 +17,7 @@ export default function Header() {
   const fullFile = serverProps?.model_path?.split(/[/\\]/).pop() ?? '';
   const build = serverProps?.build_info ?? '?';
 
-  // Extract model name from model_path
+  // Extract model name from model_path and remove the sharding suffix if present
   const modelName = serverProps?.model_path
     ?.split(/(\\|\/)/)
     .pop()
