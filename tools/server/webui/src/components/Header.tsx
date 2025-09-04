@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import StorageUtils from '../utils/storage';
 import { useAppContext } from '../utils/app.context';
 import { classNames } from '../utils/misc';
-import daisyuiThemes from 'daisyui/theme/object';
+// DaisyUI does not export a theme object for direct import; define color schemes locally if needed
+const daisyuiThemes: Record<string, { 'color-scheme'?: string }> = {
+  light: { 'color-scheme': 'light' },
+  dark: { 'color-scheme': 'dark' },
+  // Add more themes as needed
+  auto: { 'color-scheme': 'auto' },
+};
 import { THEMES } from '../Config';
 import {
   Cog8ToothIcon,
@@ -12,7 +18,21 @@ import {
 
 export default function Header() {
   const [selectedTheme, setSelectedTheme] = useState(StorageUtils.getTheme());
-  const { setShowSettings } = useAppContext();
+  const { setShowSettings, serverProps } = useAppContext();
+
+  const fullFile = serverProps?.model_path?.split(/[/\\]/).pop() ?? '';
+  const build = serverProps?.build_info ?? '?';
+
+  console.log('serverProps:', serverProps); // Add this line
+  console.log('serverProps?.model_path:', serverProps?.model_path); // Add this line
+
+  // Extract model name from model_path
+  const modelName = serverProps?.model_path
+    ?.split(/(\\|\/)/)
+    .pop()
+    ?.replace(/-\d{5}-of-\d{5}(?=\.gguf$)/, '');
+
+  console.log('modelName:', modelName); // Add this line
 
   const setTheme = (theme: string) => {
     StorageUtils.setTheme(theme);
@@ -34,7 +54,12 @@ export default function Header() {
         <Bars3Icon className="h-5 w-5" />
       </label>
 
-      <div className="grow text-2xl font-bold ml-2">llama.cpp</div>
+      <div
+        className="grow text-xl font-bold ml-2 truncate"
+        title={`${fullFile}\nllama.cpp build ${build}`}
+      >
+        llama.cpp: {modelName}
+      </div>
 
       {/* action buttons (top right) */}
       <div className="flex items-center">
