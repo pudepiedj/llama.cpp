@@ -23,16 +23,11 @@ export default function Header() {
   const fullFile = serverProps?.model_path?.split(/[/\\]/).pop() ?? '';
   const build = serverProps?.build_info ?? '?';
 
-  console.log('serverProps:', serverProps); // Add this line
-  console.log('serverProps?.model_path:', serverProps?.model_path); // Add this line
-
   // Extract model name from model_path
   const modelName = serverProps?.model_path
     ?.split(/(\\|\/)/)
     .pop()
     ?.replace(/-\d{5}-of-\d{5}(?=\.gguf$)/, '');
-
-  console.log('modelName:', modelName); // Add this line
 
   const setTheme = (theme: string) => {
     StorageUtils.setTheme(theme);
