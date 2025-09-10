@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { useAppContext } from '../utils/app.context';
 import { Message, PendingMessage } from '../utils/types';
 import { classNames } from '../utils/misc';
@@ -54,6 +54,22 @@ export default function ChatMessage({
   );
   const nextSibling = siblingLeafNodeIds[siblingCurrIdx + 1];
   const prevSibling = siblingLeafNodeIds[siblingCurrIdx - 1];
+
+  const { getConversationTokenTotal, addTokensToConversation } =
+    useAppContext();
+  const [hasAddedTokens, setHasAddedTokens] = useState(false);
+
+  // Get current conversation token total
+  const conversationTotal = getConversationTokenTotal(msg.convId);
+
+  // Add tokens to running total when timings are available
+  useEffect(() => {
+    if (timings && !hasAddedTokens && msg.role === 'assistant') {
+      const messageTokens = timings.prompt_n + timings.predicted_n;
+      addTokensToConversation(msg.convId, messageTokens);
+      setHasAddedTokens(true);
+    }
+  }, [timings, hasAddedTokens, msg.convId, msg.role, addTokensToConversation]);
 
   // for reasoning model, we split the message into content and thought
   // TODO: implement this as remark/rehype plugin in the future
@@ -175,19 +191,22 @@ export default function ChatMessage({
                     role="button"
                     className="cursor-pointer font-semibold text-sm opacity-60"
                   >
-                    Speed: {timings.predicted_per_second.toFixed(1)} t/s
+                    Speed test: {timings.predicted_per_second.toFixed(1)} t/s |
+                    Tokens: {timings.prompt_n + timings.predicted_n} this msg,{' '}
+                    {conversationTotal} total
                   </div>
                   <div className="dropdown-content bg-base-100 z-10 w-64 p-2 shadow mt-4">
-                    <b>Prompt</b>
-                    <br />- Tokens: {timings.prompt_n}
-                    <br />- Time: {timings.prompt_ms} ms
-                    <br />- Speed: {timings.prompt_per_second.toFixed(1)} t/s
+                    <b>This Exchange</b>
+                    <br />- Prompt: {timings.prompt_n} tokens
+                    <br />- Generation: {timings.predicted_n} tokens
+                    <br />- Subtotal: {timings.prompt_n +
+                      timings.predicted_n}{' '}
+                    tokens
+                    <br />- Speed test:{' '}
+                    {timings.predicted_per_second.toFixed(1)} t/s
                     <br />
-                    <b>Generation</b>
-                    <br />- Tokens: {timings.predicted_n}
-                    <br />- Time: {timings.predicted_ms} ms
-                    <br />- Speed: {timings.predicted_per_second.toFixed(1)} t/s
-                    <br />
+                    <b>Conversation Total</b>
+                    <br />- Used: {conversationTotal} tokens
                   </div>
                 </div>
               )}

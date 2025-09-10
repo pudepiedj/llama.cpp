@@ -52,6 +52,10 @@ interface AppContextValue {
 
   // props
   serverProps: LlamaCppServerProps | null;
+
+  // Token tracking
+  getConversationTokenTotal: (convId: string) => number;
+  addTokensToConversation: (convId: string, tokens: number) => void;
 }
 
 // this callback is used for scrolling to the bottom of the chat and switching to the last node
@@ -93,6 +97,9 @@ export const AppContextProvider = ({
   const [config, setConfig] = useState(StorageUtils.getConfig());
   const [canvasData, setCanvasData] = useState<CanvasData | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [conversationTokenTotals, setConversationTokenTotals] = useState<
+    Record<string, number>
+  >({});
 
   // get server props
   useEffect(() => {
@@ -386,6 +393,17 @@ export const AppContextProvider = ({
     setConfig(config);
   };
 
+  const getConversationTokenTotal = (convId: string): number => {
+    return conversationTokenTotals[convId] || 0;
+  };
+
+  const addTokensToConversation = (convId: string, tokens: number) => {
+    setConversationTokenTotals((prev) => ({
+      ...prev,
+      [convId]: (prev[convId] || 0) + tokens,
+    }));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -402,6 +420,8 @@ export const AppContextProvider = ({
         showSettings,
         setShowSettings,
         serverProps,
+        getConversationTokenTotal,
+        addTokensToConversation,
       }}
     >
       {children}

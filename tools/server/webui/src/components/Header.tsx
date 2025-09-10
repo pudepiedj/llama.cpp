@@ -47,7 +47,7 @@ export default function Header() {
         className="grow text-xl font-bold ml-2 truncate"
         title={`${fullFile}\nllama.cpp build ${build}`}
       >
-        llama.cpp: {modelName}
+        llama server.cpp: {modelName}
       </div>
 
       {/* action buttons (top right) */}

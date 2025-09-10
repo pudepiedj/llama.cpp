@@ -12,4 +12,4 @@ MODEL_PATH="/Users/edsilmacstudio/Development/llama.cpp/models/Kimi-K2-Instruct-
   --no-warmup \
   --host 0.0.0.0 \
   --port 3000 \
-  --log-file "KK2_0905_log_3"
+  --log-file "KK2_0905_log_4"
