@@ -37,7 +37,22 @@ export default function ChatMessage({
   onChangeSibling(sibling: Message['id']): void;
   isPending?: boolean;
 }) {
-  const { viewingChat, config } = useAppContext();
+  const { viewingChat, config, serverProps } = useAppContext();
+
+  if (serverProps) {
+    // Add debugging:
+    console.log('ChatMessage - serverProps: ', serverProps);
+    console.log('ChatMessage - serverProps type: ', typeof serverProps);
+    console.log(
+      'ChatMessage - serverProps keys: ',
+      serverProps ? Object.keys(serverProps) : 'null'
+    );
+    console.log('ChatMessage - n_ctx direct: ', serverProps?.n_ctx);
+    console.log(
+      'ChatMessage - currently loaded model: ',
+      serverProps?.model_path
+    );
+  }
   const [editingContent, setEditingContent] = useState<string | null>(null);
   const timings = useMemo(
     () =>
@@ -102,6 +117,9 @@ export default function ChatMessage({
   if (!viewingChat) return null;
 
   const isUser = msg.role === 'user';
+
+  // @ts-expect-error/ban-ts-comment
+  const contextSize = serverProps?.['default_generation_settings']?.['n_ctx'];
 
   return (
     <div
@@ -195,18 +213,34 @@ export default function ChatMessage({
                     Tokens: {timings.prompt_n + timings.predicted_n} this msg,{' '}
                     {conversationTotal} total
                   </div>
-                  <div className="dropdown-content bg-base-100 z-10 w-64 p-2 shadow mt-4">
-                    <b>This Exchange</b>
-                    <br />- Prompt: {timings.prompt_n} tokens
-                    <br />- Generation: {timings.predicted_n} tokens
-                    <br />- Subtotal: {timings.prompt_n +
-                      timings.predicted_n}{' '}
-                    tokens
-                    <br />- Speed test:{' '}
-                    {timings.predicted_per_second.toFixed(1)} t/s
+                  <div className="dropdown-content bg-base-100 z-10 w-64 p-2 shadow mt-4 h-80 overflow-y-auto">
+                    <h3>Chat Stats:</h3>
+                    <b>This Response</b>
+                    <br />- Generated: {timings.predicted_n} tokens
+                    <br />- Speed: {timings.predicted_per_second.toFixed(1)} t/s
                     <br />
-                    <b>Conversation Total</b>
-                    <br />- Used: {conversationTotal} tokens
+                    <b>Total Conversation</b>
+                    <br />- Context used:{' '}
+                    {timings.prompt_n + timings.predicted_n} tokens
+                    <br />- Prompt history: {timings.prompt_n} tokens
+                    <br />- This response: {timings.predicted_n} tokens
+                    {contextSize && (
+                      <>
+                        <br />- Context limit: {contextSize} tokens
+                        <br />- Remaining:{' '}
+                        {contextSize -
+                          timings.prompt_n -
+                          timings.predicted_n}{' '}
+                        tokens
+                        <br />- Usage:{' '}
+                        {Math.round(
+                          ((timings.prompt_n + timings.predicted_n) /
+                            contextSize) *
+                            100
+                        )}
+                        %
+                      </>
+                    )}
                   </div>
                 </div>
               )}
