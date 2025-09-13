@@ -134,5 +134,31 @@ export interface LlamaCppServerProps {
     vision: boolean;
     audio: boolean;
   };
+  default_generation_settings: {
+    id: number;
+    id_task: number;
+    is_processing: number;
+    n_ctx: number;
+    next_token: {
+      has_new_line: boolean;
+      has_next_token: boolean;
+      n_decoded: number;
+      n_remain: number;
+      stopping_word: string;
+    };
+  };
+  ctx_usage: {
+    n_past: number;
+    n_ctx: number;
+  };
+  slots?: SlotCtx[];
   // TODO: support params
+}
+
+export interface SlotCtx {
+  // ← the same shape you are using now
+  id: number;
+  n_past: number;
+  n_ctx: number;
+  remaining: number;
 }

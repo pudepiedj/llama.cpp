@@ -1660,10 +1660,10 @@ struct server_slot {
                 "\n"
                 "prompt eval time = %10.2f ms / %5d tokens (%8.2f ms per token, %8.2f tokens per second)\n"
                 "       eval time = %10.2f ms / %5d tokens (%8.2f ms per token, %8.2f tokens per second)\n"
-                "      total time = %10.2f ms / %5d tokens\n",
+                "      total time = %10.2f ms / %5d tokens of %5d context_length\n",
                 t_prompt_processing, n_prompt_tokens_processed, t_prompt, n_prompt_second,
                 t_token_generation, n_decoded, t_gen, n_gen_second,
-                t_prompt_processing + t_token_generation, n_prompt_tokens_processed + n_decoded);
+                t_prompt_processing + t_token_generation, n_prompt_tokens_processed + n_decoded, n_ctx);
 
         if (n_draft_total > 0) {
             const float draft_ratio = (float) n_draft_accepted / n_draft_total;
@@ -4516,6 +4516,8 @@ int main(int argc, char ** argv) {
     };
 
     const auto handle_props = [&params, &ctx_server, &res_ok](const httplib::Request &, httplib::Response & res) {
+        int32_t n_past = 0;
+        for (const auto & slot : ctx_server.slots) n_past += slot.n_past;
         // this endpoint is publicly available, please only return what is safe to be exposed
         json data = {
             { "default_generation_settings", ctx_server.default_generation_settings_for_props },
@@ -4533,6 +4535,10 @@ int main(int argc, char ** argv) {
             { "bos_token",                   common_token_to_piece(ctx_server.ctx, llama_vocab_bos(ctx_server.vocab), /* special= */ true)},
             { "eos_token",                   common_token_to_piece(ctx_server.ctx, llama_vocab_eos(ctx_server.vocab), /* special= */ true)},
             { "build_info",                  build_info },
+            { "ctx_usage", {
+                { "n_past",  n_past },              // already calculated
+                { "n_ctx",   ctx_server.params_base.n_ctx } // already available
+            }},
         };
         if (ctx_server.params_base.use_jinja) {
             if (auto tool_use_src = common_chat_templates_source(ctx_server.chat_templates.get(), "tool_use")) {

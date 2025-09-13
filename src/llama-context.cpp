@@ -674,7 +674,7 @@ void llama_context::set_abort_callback(bool (*abort_callback)(void * data), void
 }
 
 void llama_context::set_embeddings(bool value) {
-    LLAMA_LOG_DEBUG("%s: value = %d\n", __func__, value);
+    // LLAMA_LOG_DEBUG("%s: value = %d\n", __func__, value);
 
     cparams.embeddings = value;
 }
@@ -713,7 +713,7 @@ bool llama_context::rm_adapter_lora(
 }
 
 void llama_context::clear_adapter_lora() {
-    LLAMA_LOG_DEBUG("%s: call\n", __func__);
+    //LLAMA_LOG_DEBUG("%s: call\n", __func__);
 
     loras.clear();
 }

@@ -47,7 +47,14 @@ export default function ChatMessage({
       'ChatMessage - serverProps keys: ',
       serverProps ? Object.keys(serverProps) : 'null'
     );
-    console.log('ChatMessage - n_ctx direct: ', serverProps?.n_ctx);
+    console.log(
+      'ChatMessage - n_ctx per user: ',
+      serverProps.default_generation_settings.n_ctx
+    );
+    console.log(
+      'ChatMessage - total server n_ctx : ',
+      serverProps.ctx_usage.n_ctx
+    );
     console.log(
       'ChatMessage - currently loaded model: ',
       serverProps?.model_path
@@ -118,8 +125,7 @@ export default function ChatMessage({
 
   const isUser = msg.role === 'user';
 
-  // @ts-expect-error/ban-ts-comment
-  const contextSize = serverProps?.['default_generation_settings']?.['n_ctx'];
+  const contextSize = serverProps?.default_generation_settings.n_ctx; // this is the slot n_ctx
 
   return (
     <div
@@ -211,7 +217,8 @@ export default function ChatMessage({
                   >
                     Speed test: {timings.predicted_per_second.toFixed(1)} t/s |
                     Tokens: {timings.prompt_n + timings.predicted_n} this msg,{' '}
-                    {conversationTotal} total
+                    {conversationTotal} total of{' '}
+                    {serverProps?.default_generation_settings.n_ctx}
                   </div>
                   <div className="dropdown-content bg-base-100 z-10 w-64 p-2 shadow mt-4 h-80 overflow-y-auto">
                     <h3>Chat Stats:</h3>
@@ -223,7 +230,6 @@ export default function ChatMessage({
                     <br />- Context used:{' '}
                     {timings.prompt_n + timings.predicted_n} tokens
                     <br />- Prompt history: {timings.prompt_n} tokens
-                    <br />- This response: {timings.predicted_n} tokens
                     {contextSize && (
                       <>
                         <br />- Context limit: {contextSize} tokens

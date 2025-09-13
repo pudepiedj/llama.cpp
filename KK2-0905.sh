@@ -6,10 +6,10 @@ MODEL_PATH="/Users/edsilmacstudio/Development/llama.cpp/models/Kimi-K2-Instruct-
 
 ./build/bin/llama-server \
   -m "$MODEL_PATH" \
-  -c 225176 \
+  -c 229376 \
   -ngl 99 \
-  --parallel 4 \
+  --parallel 7 \
   --no-warmup \
   --host 0.0.0.0 \
   --port 3000 \
-  --log-file "KK2_0905_log_4"
+  --log-file "KK2_0905_log_6"

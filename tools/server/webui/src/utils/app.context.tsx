@@ -7,6 +7,7 @@ import {
   Message,
   PendingMessage,
   ViewingChat,
+  SlotCtx,
 } from './types';
 import StorageUtils from './storage';
 import {
@@ -56,6 +57,9 @@ interface AppContextValue {
   // Token tracking
   getConversationTokenTotal: (convId: string) => number;
   addTokensToConversation: (convId: string, tokens: number) => void;
+
+  setCtxUsage: (u: SlotCtx | undefined) => void;
+  ctxUsage?: SlotCtx;
 }
 
 // this callback is used for scrolling to the bottom of the chat and switching to the last node
@@ -100,6 +104,7 @@ export const AppContextProvider = ({
   const [conversationTokenTotals, setConversationTokenTotals] = useState<
     Record<string, number>
   >({});
+  const [ctxUsage, setCtxUsage] = useState<SlotCtx | undefined>();
 
   // get server props
   useEffect(() => {
@@ -256,6 +261,7 @@ export const AppContextProvider = ({
         const body = await fetchResponse.json();
         throw new Error(body?.error?.message || 'Unknown error');
       }
+
       const chunks = getSSEStreamAsync(fetchResponse);
       for await (const chunk of chunks) {
         // const stop = chunk.stop;
@@ -422,6 +428,8 @@ export const AppContextProvider = ({
         serverProps,
         getConversationTokenTotal,
         addTokensToConversation,
+        ctxUsage, // <- new
+        setCtxUsage, // <- new
       }}
     >
       {children}
