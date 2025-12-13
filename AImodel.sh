@@ -39,7 +39,7 @@ shift
 # ---------- defaults (tweak once, affects every model) -----
 DEF_OPTS=(                   # ← array, not scalar string
   --parallel 4
-  -c 13072
+  -c 131072
   -b 8192
   -ngl 99
   --no-warmup
