@@ -6,6 +6,7 @@
 
 	const sidebar = useSidebar();
 
+	import { singleModelName } from '$lib/stores/models.svelte';
 	let settingsOpen = $state(false);
 
 	function toggleSettings() {
@@ -19,6 +20,9 @@
 		: ''}"
 >
 	<div class="pointer-events-auto flex items-center space-x-2">
+		{#if singleModelName()}
+			<span class="text-xl font-semibold">{singleModelName()}</span>
+		{/if}
 		<Button variant="ghost" size="sm" onclick={toggleSettings}>
 			<Settings class="h-4 w-4" />
 		</Button>

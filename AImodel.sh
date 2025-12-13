@@ -40,6 +40,7 @@ shift
 DEF_OPTS=(                   # ← array, not scalar string
   --parallel 4
   -c 131072
+# >>>>>>> Stashed changes
   -b 8192
   -ngl 99
   --no-warmup

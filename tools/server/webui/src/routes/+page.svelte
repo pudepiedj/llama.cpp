@@ -2,7 +2,7 @@
 	import { ChatScreen, DialogModelNotAvailable } from '$lib/components/app';
 	import { chatStore } from '$lib/stores/chat.svelte';
 	import { conversationsStore, isConversationsInitialized } from '$lib/stores/conversations.svelte';
-	import { modelsStore, modelOptions } from '$lib/stores/models.svelte';
+	import { modelsStore, modelOptions, singleModelName } from '$lib/stores/models.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
@@ -79,7 +79,7 @@
 </script>
 
 <svelte:head>
-	<title>llama.cpp - AI Chat Interface</title>
+	<title>{singleModelName || 'llama.cpp'}</title>
 </svelte:head>
 
 <ChatScreen showCenteredEmpty={true} />
