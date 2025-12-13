@@ -9,7 +9,7 @@
 		activeConversation,
 		activeMessages
 	} from '$lib/stores/conversations.svelte';
-	import { modelsStore, modelOptions, selectedModelId } from '$lib/stores/models.svelte';
+	import { modelsStore, modelOptions, selectedModelId, singleModelName } from '$lib/stores/models.svelte';
 
 	let chatId = $derived(page.params.id);
 	let currentChatId: string | undefined = undefined;
@@ -164,7 +164,7 @@
 </script>
 
 <svelte:head>
-	<title>{activeConversation()?.name || 'Chat'} - llama.cpp</title>
+	<title>{singleModelName() || 'Chat'}</title>
 </svelte:head>
 
 <ChatScreen />
