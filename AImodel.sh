@@ -11,9 +11,11 @@ MODEL=(
     LEM  ~/Development/llama.cpp/models/lemon07r_VellumMini-0.1-Qwen3-14B-Q4_K_M.gguf
     MIS  ~/Development/llama.cpp/models/Mixtral-8x7b/Mixtral-8x7B-Instruct-v0.1.Q4_K_M.gguf
     MIX  ~/Development/llama.cpp/models/mistralai_Mistral-Small-3.2-24B-Instruct-2506-Q8_0.gguf
+    MID  ~/Development/llama.cpp/models/Devstral_123B/mistralai_Devstral-2-123B-Instruct-2512-Q6_K-00001-of-00003.gguf
     GPT  ~/Development/llama.cpp/models/gguf/gpt-oss-120B.gguf
     QW2  ~/Development/llama.cpp/models/Qwen_2.5_Omni/Qwen2.5-Omni-7B.gguf
     QWB  ~/Development/llama.cpp/models/Qwen2.5-Coder-32B-Instruct-Q8_0.gguf
+    QIL  ~/Development/llama.cpp/models/Qwen_Image_Layered-Q8_0.gguf
     QWC  ~/Development/llama.cpp/models/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf
     QW3  ~/Development/llama.cpp/models/gguf/qwen3-235b-f16.gguf
     NH4  ~/Development/llama.cpp/models/Nous/Hermes-4-70B-Q8_0-00001-of-00002.gguf
@@ -46,6 +48,8 @@ DEF_OPTS=(                   # ← array, not scalar string
   --no-warmup
   --host 0.0.0.0
   --port 3000
+  # this next just finds the favicon.ico that the server otherwise whinges about
+  # --path "$(pwd)/tools/server/themes/wild"
 )
 LOG_DIR=~/llama-logs
 mkdir -p $LOG_DIR
