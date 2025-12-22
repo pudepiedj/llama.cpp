@@ -2,11 +2,11 @@
 	import { Settings } from '@lucide/svelte';
 	import { DialogChatSettings } from '$lib/components/app';
 	import { Button } from '$lib/components/ui/button';
+	import { singleModelName } from '$lib/stores/models.svelte';
 	import { useSidebar } from '$lib/components/ui/sidebar';
 
 	const sidebar = useSidebar();
-
-	import { singleModelName } from '$lib/stores/models.svelte';
+	
 	let settingsOpen = $state(false);
 
 	function toggleSettings() {
@@ -20,6 +20,9 @@
 		: ''}"
 >
 	<div class="pointer-events-auto flex items-center space-x-2">
+		{#if singleModelName()}
+			<span class="text-xl font-semibold">{singleModelName()}</span>
+		{/if}
 		{#if singleModelName()}
 			<span class="text-xl font-semibold">{singleModelName()}</span>
 		{/if}
